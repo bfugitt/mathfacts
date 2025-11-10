@@ -15,13 +15,13 @@ const App = {
 // Grade-level configurations
 const GRADE_CONFIG = {
     1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 20 },
-    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 20, maxFactor: 0, targetScore: 30 },
-    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 20, maxFactor: 10, targetScore: 40 },
-    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
-    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 12, targetScore: 60 },
-    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 60 },
-    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 70 },
-    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 80 },
+    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 15, maxFactor: 0, targetScore: 25 },
+    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 18, maxFactor: 10, targetScore: 30 },
+    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 20, maxFactor: 12, targetScore: 40 },
+    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
+    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 30, maxFactor: 15, targetScore: 60 },
+    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 40, maxFactor: 18, targetScore: 65 },
+    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 20, targetScore: 70 },
 };
 
 // Cooldown time on wrong answer (in milliseconds)
