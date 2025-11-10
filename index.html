@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Fact Universe</title>
+    
+    <!-- External Libraries -->
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tone.js for Sound -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    
+    <!-- Your New Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- This is the main container for the entire application -->
+    <div id="appContainer" class="bg-white p-6 md:p-10 rounded-2xl shadow-2xl w-full max-w-lg md:max-w-xl transition-all duration-300">
+        
+        <!-- The title will be updated by app.js -->
+        <h1 id="appTitle" class="text-3xl md:text-4xl font-extrabold text-indigo-700 text-center mb-6 md:mb-8">
+            Math Fact Universe
+        </h1>
+
+        <!-- All dynamic content (screens) will be injected here -->
+        <div id="screenContainer">
+            <!-- The initial screen will be rendered by app.js -->
+        </div>
+    </div>
+
+    <!-- Your New Main App Script -->
+    <!-- 'defer' ensures the script runs after the HTML is parsed -->
+    <script src="app.js" defer></script>
+</body>
+</html>

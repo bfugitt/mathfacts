@@ -1,0 +1,172 @@
+/* * COMBINED AND DE-DUPLICATED STYLESHEET
+ * This file contains all unique styles from the four original HTML files.
+ */
+
+/* --- Global Font Setup --- */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f7f9fb; /* Consistent background */
+}
+
+/* --- Flashing Effects (Used by all modes) --- */
+.correct-flash {
+    border-color: #10B981 !important; /* Green 500 */
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.7) !important;
+}
+
+.incorrect-flash {
+    border-color: #EF4444 !important; /* Red 500 */
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.7) !important;
+}
+
+/* --- Duel Mode Specific Flashes --- */
+.duel-correct-flash {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 1) !important; /* Brighter Green */
+}
+
+.duel-incorrect-flash {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 1) !important; /* Brighter Red */
+}
+
+/* --- Input & Answer Button Styling (Used by all modes) --- */
+#answerInput {
+    transition: all 0.1s ease-in-out;
+}
+
+.choice-button {
+    transition: all 0.1s ease-in-out;
+}
+
+.choice-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Custom Toggle Switch (Used in setup screens) --- */
+.toggle-checkbox:checked + .toggle-label {
+    background-color: #4f46e5; /* Indigo 600 */
+}
+.toggle-checkbox:checked + .toggle-label::after {
+    transform: translateX(100%);
+    border-color: white;
+}
+.toggle-label {
+    width: 4rem;
+    height: 2rem;
+    background-color: #d1d5db; /* Gray 300 */
+    border-radius: 9999px;
+    position: relative;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+.toggle-label::after {
+    content: '';
+    position: absolute;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    background-color: white;
+    border-width: 1px;
+    border-color: #d1d5db; /* Gray 300 */
+    top: 0.125rem;
+    left: 0.125rem;
+    transition: transform 0.2s ease;
+}
+
+/* --- Custom Range Slider (Used in setup screens) --- */
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: #d1d5db; /* Gray 300 */
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+input[type=range]:hover {
+    opacity: 1;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: #4f46e5; /* Indigo 600 */
+    cursor: pointer;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: #4f46e5; /* Indigo 600 */
+    cursor: pointer;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+    background: #e5e7eb; /* Gray 200 */
+    height: 8px;
+    border-radius: 4px;
+}
+
+input[type=range]::-moz-range-track {
+    background: #e5e7eb; /* Gray 200 */
+    height: 8px;
+    border-radius: 4px;
+}
+
+/* --- Progress Bar (Used in Practice/Master modes) --- */
+.progress-bar-container {
+    height: 20px;
+    background-color: #e5e7eb; /* Gray 200 */
+    border-radius: 9999px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: #4f46e5; /* Indigo 600 */
+    transition: width 0.3s ease-out;
+    border-radius: 9999px;
+    background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(255, 255, 255, 0.15) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 40px 40px;
+}
+
+/* --- Generic Button Style --- */
+.btn {
+    @apply font-bold py-3 px-6 rounded-lg text-xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-md;
+}
+.btn-indigo {
+    @apply bg-indigo-600 hover:bg-indigo-700 text-white;
+}
+.btn-green {
+    @apply bg-green-600 hover:bg-green-700 text-white;
+}
+.btn-blue {
+    @apply bg-blue-600 hover:bg-blue-700 text-white;
+}
+.btn-red {
+    @apply bg-red-600 hover:bg-red-700 text-white;
+}
+.btn-gray {
+    @apply bg-gray-500 hover:bg-gray-600 text-white py-2 text-base shadow-sm;
+}
