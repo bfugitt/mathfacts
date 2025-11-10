@@ -227,7 +227,7 @@ const PracticeMode = {
         const opsCheckboxes = PracticeMode.gradeConfig.ops.map(op => `
             <div class="flex items-center justify-center">
                 <input id="op-${op}" type="checkbox" checked class="form-checkbox h-5 w-5 text-indigo-600" value="${op}">
-                <label for="op-${op}" class="ml-2 text-2xl font-bold">${op}</label>
+                <label for="op-${op}" class="ml-2 text-2xl font-bold">${formatOp(op)}</label>
             </div>
         `).join('');
 
@@ -862,8 +862,12 @@ const DuelMode = {
     renderSetupScreen: () => {
         appTitle.textContent = 'Duel Setup';
         const { maxAddend, maxFactor } = DuelMode.gradeConfig;
+        
+        // Use user's requested caps
         const newMaxAdd = 50;
         const newMaxFact = 20;
+        
+        // Default to the grade's level, but don't exceed the new cap
         const defaultAdd = Math.min(maxAddend, newMaxAdd);
         const defaultFact = Math.min(maxFactor > 0 ? maxFactor : 12, newMaxFact);
 
@@ -875,29 +879,38 @@ const DuelMode = {
                         ${DuelMode.gradeConfig.ops.map(op => `
                             <div class="flex items-center justify-center">
                                 <input id="op-${op}" type="checkbox" checked class="form-checkbox h-5 w-5 text-indigo-600" value="${op}">
-                                <label for="op-${op}" class="ml-2 text-2xl font-bold">${op}</label>
+                                <label for="op-${op}" class="ml-2 text-2xl font-bold">${formatOp(op)}</label>
                             </div>
                         `).join('')}
                     </div>
                 </div>
+
+                <!-- NEW: Re-added sliders -->
+                <div class="space-y-4">
+                    <div>
+                        <label for="duelMaxAdd" class="block text-sm font-medium text-gray-700">Max Number (+, -): <span id="duelMaxAddValue" class="font-bold">${defaultAdd}</span></label>
+                        <input type="range" id="duelMaxAdd" min="5" max="${newMaxAdd}" value="${defaultAdd}" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="duelMaxFact" class="block text-sm font-medium text-gray-700">Max Number (x, ÷): <span id="duelMaxFactValue" class="font-bold">${defaultFact}</span></label>
+                        <input type="range" id="duelMaxFact" min="2" max="${newMaxFact}" value="${defaultFact}" class="mt-1">
+                    </div>
+                </div>
+                <!-- END NEW -->
 
                 <button id="startDuelGame" class="${BTN_BASE} ${BTN_RED}">Start Duel!</button>
                 ${getBackButton()}
             </div>
         `;
 
-        // Event listeners for sliders
-        /* --- REMOVED ---
-        document.getElementById('maxAdd').addEventListener('input', e => {
-            document.getElementById('maxAddValue').textContent = e.target.value;
+        // --- NEW: Event listeners for sliders ---
+        document.getElementById('duelMaxAdd').addEventListener('input', e => {
+            document.getElementById('duelMaxAddValue').textContent = e.target.value;
         });
-        document.getElementById('maxFact').addEventListener('input', e => {
-            document.getElementById('maxFactValue').textContent = e.target.value;
+        document.getElementById('duelMaxFact').addEventListener('input', e => {
+            document.getElementById('duelMaxFactValue').textContent = e.target.value;
         });
-        document.getElementById('timerSet').addEventListener('input', e => {
-            document.getElementById('timerValue').textContent = e.target.value;
-        });
-        */
+        // --- END NEW ---
         
         // Event listener for start
         document.getElementById('startDuelGame').addEventListener('click', () => {
@@ -907,11 +920,11 @@ const DuelMode = {
                 return;
             }
             
-            // --- FIX: Use gradeConfig values, not non-existent sliders ---
+            // --- FIX: Read from new sliders ---
             DuelMode.settings = {
                 ops: selectedOps,
-                maxAddend: DuelMode.gradeConfig.maxAddend,
-                maxFactor: DuelMode.gradeConfig.maxFactor,
+                maxAddend: parseInt(document.getElementById('duelMaxAdd').value),
+                maxFactor: parseInt(document.getElementById('duelMaxFact').value),
                 timer: 60 // Default to 60 seconds
             };
             // --- END FIX ---
@@ -941,7 +954,7 @@ const DuelMode = {
                     <h2 class="text-2xl font-bold text-red-700 text-center">Player 1 (A, S, D, F)</h2>
                     <div class="text-4xl font-bold text-center my-4" id="p1-score">Score: 0</div>
                     <div class="text-5xl font-bold text-center my-6" id="p1-problem"></div>
-                    <div class="grid grid-cols-2 gap-2" id="p1-choices"></div>
+                    <div class="grid grid-cols-4 gap-2" id="p1-choices"></div>
                 </div>
                 
                 <!-- Player 2 -->
@@ -949,10 +962,10 @@ const DuelMode = {
                     <h2 class="text-2xl font-bold text-blue-700 text-center">Player 2 (J, K, L, ;)</h2>
                     <div class="text-4xl font-bold text-center my-4" id="p2-score">Score: 0</div>
                     <div class="text-5xl font-bold text-center my-6" id="p2-problem"></div>
-                    <div class="grid grid-cols-2 gap-2" id="p2-choices"></div>
+                    <div class="grid grid-cols-4 gap-2" id="p2-choices"></div>
                 </div>
             </div>
-            <button id="endDuelEarly" class="btn btn-gray mt-6">End Duel</button>
+            <button id="endDuelEarly" class="${BTN_GRAY} mt-6">End Duel</button>
         `;
         
         // Add listener for new End Duel button
