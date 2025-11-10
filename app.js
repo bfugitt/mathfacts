@@ -293,6 +293,18 @@ const PracticeMode = {
                     <div id="attemptsDisplay" class="text-blue-600">Attempted: 0</div>
                 </div>
                 
+                <!-- NEW: Added problem/answer containers that were missing -->
+                <div id="problemDisplay" class="text-6xl md:text-7xl font-bold text-gray-800 my-8 p-6 bg-gray-100 rounded-lg">
+                    <!-- Problem will be injected here -->
+                </div>
+                
+                <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
+                
+                <div id="answerContainer" class="mt-4">
+                    <!-- Answer input/buttons will be injected here -->
+                </div>
+                <!-- END NEW -->
+
                 <button id="endGameEarly" class="${BTN_GRAY}">End Session</button>
             </div>
         `;
@@ -823,12 +835,14 @@ const DuelMode = {
                 return;
             }
             
+            // --- FIX: Use gradeConfig values, not non-existent sliders ---
             DuelMode.settings = {
                 ops: selectedOps,
-                maxAddend: parseInt(document.getElementById('maxAdd').value),
-                maxFactor: parseInt(document.getElementById('maxFact').value),
-                timer: parseInt(document.getElementById('timerSet').value)
+                maxAddend: DuelMode.gradeConfig.maxAddend,
+                maxFactor: DuelMode.gradeConfig.maxFactor,
+                timer: 60 // Default to 60 seconds
             };
+            // --- END FIX ---
             
             DuelMode.renderGame();
         });
