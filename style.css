@@ -19,6 +19,23 @@ body {
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.7) !important;
 }
 
+/* --- NEW: Specific Button Flashes --- */
+.choice-button.correct-flash {
+    background-color: #10B981 !important;
+    color: white !important;
+    transform: scale(1.05);
+    border-color: #059669 !important;
+}
+
+.choice-button.incorrect-flash {
+    background-color: #EF4444 !important;
+    color: white !important;
+    opacity: 0.8 !important;
+    border-color: #DC2626 !important;
+}
+/* --- End New --- */
+
+
 /* --- Duel Mode Specific Flashes --- */
 .duel-correct-flash {
     box-shadow: 0 0 20px rgba(16, 185, 129, 1) !important; /* Brighter Green */
