@@ -95,7 +95,6 @@ function generateProblem(settings) {
             break;
         case '÷':
             n2 = Math.floor(Math.random() * maxFact) + 1; // Divisor (1 to maxFact)
-            // FIX: Corrected 'let-' to 'let'
             let answer_temp = Math.floor(Math.random() * maxFact) + 1; // Result (1 to maxFact)
             n1 = n2 * answer_temp; // Dividend
             answer = answer_temp;
@@ -107,19 +106,41 @@ function generateProblem(settings) {
 /** Generates 3 incorrect choices for a given answer */
 function getMultipleChoices(correctAnswer) {
     let choices = new Set([correctAnswer]);
+
+    // Create a pool of potential incorrect answers
+    let incorrectPool = [];
     
-    // Add variations
-    if (correctAnswer > 10) {
-        choices.add(correctAnswer + 10);
-        choices.add(correctAnswer - 10);
-    }
-    if (correctAnswer > 1) {
-        choices.add(correctAnswer + 1);
-        choices.add(correctAnswer - 1);
-    }
-    // Add randoms until we have 4 choices
-    while (choices.size < 4) {
+    // Add simple variations first, if they are not the correct answer
+    if (correctAnswer + 1 !== correctAnswer) incorrectPool.push(correctAnswer + 1);
+    if (correctAnswer - 1 !== correctAnswer && correctAnswer - 1 >= 0) incorrectPool.push(correctAnswer - 1);
+    if (correctAnswer + 10 !== correctAnswer) incorrectPool.push(correctAnswer + 10);
+    if (correctAnswer - 10 !== correctAnswer && correctAnswer - 10 >= 0) incorrectPool.push(correctAnswer - 10);
+
+    // Add some randoms to the pool
+    for (let i = 0; i < 5; i++) {
         let rand = Math.floor(Math.random() * (correctAnswer + 10)) + Math.max(0, correctAnswer - 5);
+        if (rand >= 0) {
+            incorrectPool.push(rand);
+        }
+    }
+
+    // Filter out the correct answer from the pool and get unique values
+    let uniqueIncorrect = [...new Set(incorrectPool.filter(ans => ans !== correctAnswer))];
+    
+    // Shuffle the unique incorrect answers
+    uniqueIncorrect.sort(() => Math.random() - 0.5);
+
+    // Add incorrect answers to the main set until it has 4 items
+    let i = 0;
+    while (choices.size < 4 && i < uniqueIncorrect.length) {
+        choices.add(uniqueIncorrect[i]);
+        i++;
+    }
+
+    // Failsafe: If we still don't have 4 (e.g., all randoms were the same)
+    // keep adding randoms until we do.
+    while (choices.size < 4) {
+        let rand = Math.floor(Math.random() * (correctAnswer + 15)) + Math.max(0, correctAnswer - 8);
         if (rand >= 0) {
             choices.add(rand);
         }
@@ -724,7 +745,6 @@ const MasterMode = {
         const accuracy = (MasterMode.attempted > 0) ? (MasterMode.correct / MasterMode.attempted * 100).toFixed(0) : 0;
         const passed = MasterMode.score >= MasterMode.targetScore;
         
-        // FIX: Corrected 'let-' to 'let'
         let resultMessage = passed
             ? `<h2 class="text-4xl font-bold text-green-600">You Passed!</h2><p class="text-2xl text-gray-700">You met the target score of ${MasterMode.targetScore}!</p>`
             : `<h2 class="text-4xl font-bold text-red-600">Try Again!</h2><p class="text-2xl text-gray-700">You were ${MasterMode.targetScore - MasterMode.score} points away from the target of ${MasterMode.targetScore}.</p>`;
