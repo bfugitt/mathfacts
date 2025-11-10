@@ -535,25 +535,52 @@ const MasterMode = {
     gameInterval: null,
     isCoolingDown: false,
     COOLDOWN_TIME: 2500, // 2.5 second penalty
-    isMultipleChoice: true, // Master mode is always multiple choice
+    isMultipleChoice: true, // This will now be set by the setup screen
 
     /** Starts the Master Mode */
     start: (gradeConfig) => {
         MasterMode.gradeConfig = gradeConfig;
+        MasterMode.renderSetupScreen(); // Go to setup screen first
+    },
+    
+    /** NEW: Renders setup screen for Master Mode */
+    renderSetupScreen: () => {
+        appTitle.textContent = 'Master Test Setup';
         
+        screenContainer.innerHTML = `
+            <div class="space-y-6">
+                <div class="flex justify-between items-center bg-gray-100 p-4 rounded-lg">
+                    <label for="mcToggle" class="text-lg font-medium text-gray-700">Multiple Choice</label>
+                    <input type="checkbox" id="mcToggle" class="toggle-checkbox hidden" checked />
+                    <label for="mcToggle" class="toggle-label"></label>
+                </div>
+                
+                <div class="text-sm text-center text-gray-600">
+                    The Master Test is always a 1-minute timed challenge.
+                </div>
+
+                <button id="startMasterGame" class="${BTN_BASE} ${BTN_BLUE}">Start Test</button>
+                ${getBackButton()}
+            </div>
+        `;
+
+        // Add event listeners
+        document.getElementById('startMasterGame').addEventListener('click', () => {
+            MasterMode.isMultipleChoice = document.getElementById('mcToggle').checked;
+            MasterMode.renderGame();
+        });
+        attachBackButtonListener(App.currentGrade);
+    },
+
+
+    /** Renders the game screen for Master Mode */
+    renderGame: () => {
         // Reset state
         MasterMode.score = 0;
         MasterMode.timer = 60;
         MasterMode.problemHistory = [];
         if (MasterMode.gameInterval) clearInterval(MasterMode.gameInterval);
-        
-        MasterMode.renderGame();
-        MasterMode.startTimer();
-        MasterMode.nextProblem();
-    },
 
-    /** Renders the game screen for Master Mode */
-    renderGame: () => {
         appTitle.textContent = 'Master Test';
         const { targetScore } = MasterMode.gradeConfig;
         
@@ -576,14 +603,18 @@ const MasterMode = {
                 <!-- Helper text for showing correct answer (though not used in MC) -->
                 <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
                 
-                <div id="answerContainer" class="grid grid-cols-2 gap-4 mt-4">
-                    <!-- Answer buttons will be injected here -->
+                <div id="answerContainer" class="mt-4">
+                    <!-- Answer input/buttons will be injected here -->
                 </div>
                 ${getBackButton()}
             </div>
         `;
         
         attachBackButtonListener(App.currentGrade);
+        
+        // Start game
+        MasterMode.startTimer();
+        MasterMode.nextProblem();
     },
 
     /** Starts the 60-second timer */
@@ -618,16 +649,30 @@ const MasterMode = {
         problemDisplay.textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
         helperText.textContent = ''; // Clear helper text
         
-        const choices = MasterMode.generateChoices(answer);
-        answerContainer.innerHTML = `
-            ${choices.map(choice => `
-                <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}">${choice}</button>
-            `).join('')}
-        `;
-        
-        document.querySelectorAll('.choice-button').forEach(btn => {
-            btn.addEventListener('click', () => MasterMode.checkAnswer(btn.textContent));
-        });
+        if (MasterMode.isMultipleChoice) {
+            const choices = MasterMode.generateChoices(answer);
+            answerContainer.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    ${choices.map(choice => `
+                        <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}">${choice}</button>
+                    `).join('')}
+                </div>`;
+            
+            document.querySelectorAll('.choice-button').forEach(btn => {
+                btn.addEventListener('click', () => MasterMode.checkAnswer(btn.textContent));
+            });
+        } else {
+            answerContainer.innerHTML = `
+                <input type="number" id="answerInput" class="text-center text-4xl font-bold p-4 w-full max-w-xs mx-auto border-4 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 outline-none" autofocus />
+            `;
+            const input = document.getElementById('answerInput');
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && input.value !== '') {
+                    MasterMode.checkAnswer(input.value);
+                }
+            });
+            input.focus();
+        }
     },
 
     /** Generates a new problem (uses same logic as Practice Mode) */
@@ -684,24 +729,42 @@ const MasterMode = {
         MasterMode.problemHistory.push({ ...MasterMode.currentProblem, userAnswer, isCorrect });
         
         MasterMode.isCoolingDown = true; // Block input immediately
-        const buttons = document.querySelectorAll('.choice-button');
+        
+        if (MasterMode.isMultipleChoice) {
+            const buttons = document.querySelectorAll('.choice-button');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                const btnValue = parseInt(btn.textContent);
+                if (btnValue === MasterMode.currentProblem.answer) {
+                    btn.classList.add('correct-flash'); // Always show correct answer
+                }
+                if (!isCorrect && btnValue === parseInt(userAnswer)) {
+                    btn.classList.add('incorrect-flash'); // Show user's wrong answer
+                }
+            });
+        } else {
+            const input = document.getElementById('answerInput');
+            if (input) {
+                input.disabled = true;
+                if (!isCorrect) {
+                    input.classList.add('incorrect-flash');
+                    document.getElementById('helperTextDisplay').textContent = `Answer: ${MasterMode.currentProblem.answer}`;
+                } else {
+                    input.classList.add('correct-flash');
+                }
+            }
+        }
 
-        buttons.forEach(btn => {
-            btn.disabled = true;
-            const btnValue = parseInt(btn.textContent);
-            if (btnValue === MasterMode.currentProblem.answer) {
-                btn.classList.add('correct-flash'); // Always show correct answer
-            }
-            if (!isCorrect && btnValue === parseInt(userAnswer)) {
-                btn.classList.add('incorrect-flash'); // Show user's wrong answer
-            }
-        });
 
         if (isCorrect) {
             playCorrectSound();
             MasterMode.score++;
             MasterMode.updateScoreDisplay();
             setTimeout(() => {
+                if (!MasterMode.isMultipleChoice) {
+                    const input = document.getElementById('answerInput');
+                    if (input) input.classList.remove('correct-flash');
+                }
                 MasterMode.isCoolingDown = false;
                 MasterMode.nextProblem();
             }, 200); // Quick transition
@@ -709,6 +772,13 @@ const MasterMode = {
             playIncorrectSound();
             // No score penalty, just time penalty
             setTimeout(() => {
+                if (!MasterMode.isMultipleChoice) {
+                    const input = document.getElementById('answerInput');
+                    if (input) {
+                        input.classList.remove('incorrect-flash');
+                        input.disabled = false;
+                    }
+                }
                 MasterMode.isCoolingDown = false;
                 MasterMode.nextProblem();
             }, MasterMode.COOLDOWN_TIME);
