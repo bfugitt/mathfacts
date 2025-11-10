@@ -170,7 +170,7 @@ input[type=range]::-moz-range-track {
 
 /* --- Generic Button Style --- */
 .btn {
-    @apply font-bold py-3 px-6 rounded-lg text-xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-md;
+    @apply font-bold py-4 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-md;
 }
 .btn-indigo {
     @apply bg-indigo-600 hover:bg-indigo-700 text-white;
