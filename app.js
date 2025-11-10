@@ -335,7 +335,7 @@ const PracticeMode = {
                 </div>`;
             
             document.querySelectorAll('.choice-button').forEach(btn => {
-                btn.addEventListener('click', ()_ => PracticeMode.checkAnswer(btn.textContent));
+                btn.addEventListener('click', () => PracticeMode.checkAnswer(btn.textContent));
             });
         } else {
             answerContainer.innerHTML = `
@@ -575,7 +575,7 @@ const MasterMode = {
         `;
         
         document.querySelectorAll('.choice-button').forEach(btn => {
-            btn.addEventListener('click', ()_ => MasterMode.checkAnswer(btn.textContent));
+            btn.addEventListener('click', () => MasterMode.checkAnswer(btn.textContent));
         });
     },
 
