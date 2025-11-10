@@ -40,6 +40,19 @@ const GRADE_CONFIG = {
 const screenContainer = document.getElementById('screenContainer');
 const appTitle = document.getElementById('appTitle');
 
+// --- NEW: Tailwind Class Constants ---
+// Define all button styles here so the CDN can see and apply them
+const BTN_BASE = "font-bold py-4 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
+const BTN_INDIGO = "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-800 active:border-indigo-600";
+const BTN_GREEN = "bg-green-600 hover:bg-green-700 text-white border-green-800 active:border-green-600";
+const BTN_BLUE = "bg-blue-600 hover:bg-blue-700 text-white border-blue-800 active:border-blue-800";
+const BTN_RED = "bg-red-600 hover:bg-red-700 text-white border-red-800 active:border-red-600";
+const BTN_GRAY = "bg-gray-500 hover:bg-gray-600 text-white py-2 text-base shadow-sm border-gray-700 active:border-gray-500 font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 border-2 border-b-4";
+const BTN_CHOICE = "font-bold py-4 px-6 rounded-lg text-3xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4"; // For 4-choice
+const BTN_DUEL = "font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4 text-xl p-2 leading-none"; // For duel
+// --- End New ---
+
+
 // --- 2. SHARED UTILITIES ---
 
 /** Sound effect synthesizers (centralized) */
@@ -99,7 +112,7 @@ function shuffleArray(array) {
  * @returns {string} HTML string for the back button.
  */
 function getBackButton() {
-    return `<button id="goBack" class="btn btn-gray mt-6">Back to Mode Select</button>`;
+    return `<button id="goBack" class="${BTN_GRAY} mt-6">Back to Mode Select</button>`;
 }
 
 /**
@@ -107,7 +120,7 @@ function getBackButton() {
  * @returns {string} HTML string for the main menu button.
  */
 function getMainMenuButton() {
-    return `<button id="goMainMenu" class="btn btn-gray mt-6">Main Menu</button>`;
+    return `<button id="goMainMenu" class="${BTN_GRAY} mt-6">Main Menu</button>`;
 }
 
 /**
@@ -138,7 +151,7 @@ const App = {
     renderGradeSelect: () => {
         appTitle.textContent = 'Select Your Grade';
         let buttonsHTML = Object.keys(GRADE_CONFIG).map(grade => {
-            return `<button class="btn btn-indigo grade-btn" data-grade="${grade}">
+            return `<button class="grade-btn ${BTN_BASE} ${BTN_INDIGO}" data-grade="${grade}">
                 ${GRADE_CONFIG[grade].name}
             </button>`;
         }).join('');
@@ -161,16 +174,16 @@ const App = {
     renderModeSelect: (grade) => {
         appTitle.textContent = `Grade ${grade} - Select Mode`;
         screenContainer.innerHTML = `
-            <button id="startPractice" class="btn btn-green">
+            <button id="startPractice" class="${BTN_BASE} ${BTN_GREEN}">
                 🎯 Practice
             </button>
-            <button id="startMaster" class="btn btn-blue">
+            <button id="startMaster" class="${BTN_BASE} ${BTN_BLUE}">
                 ⭐ Master Test (1-Min)
             </button>
-            <button id="startDuel" class="btn btn-red">
+            <button id="startDuel" class="${BTN_BASE} ${BTN_RED}">
                 ⚔️ Facts Duel
             </button>
-            <button id="goBackToGrade" class="btn btn-gray mt-6">
+            <button id="goBackToGrade" class="${BTN_GRAY} mt-6">
                 Back to Grade Select
             </button>
         `;
@@ -239,7 +252,7 @@ const PracticeMode = {
                     <label for="timerToggle" class="toggle-label"></label>
                 </div>
 
-                <button id="startPracticeGame" class="btn btn-green">Start Practice</button>
+                <button id="startPracticeGame" class="${BTN_BASE} ${BTN_GREEN}">Start Practice</button>
                 ${getBackButton()}
             </div>
         `;
@@ -280,18 +293,7 @@ const PracticeMode = {
                     <div id="attemptsDisplay" class="text-blue-600">Attempted: 0</div>
                 </div>
                 
-                <div id="problemDisplay" class="text-6xl md:text-7xl font-bold text-gray-800 my-8 p-6 bg-gray-100 rounded-lg">
-                    <!-- Problem will be injected here -->
-                </div>
-                
-                <!-- Helper text for showing correct answer on text input -->
-                <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
-                
-                <div id="answerContainer">
-                    <!-- Answer input or buttons will be injected here -->
-                </div>
-                
-                <button id="endGameEarly" class="btn btn-gray">End Session</button>
+                <button id="endGameEarly" class="${BTN_GRAY}">End Session</button>
             </div>
         `;
         
@@ -346,7 +348,7 @@ const PracticeMode = {
             answerContainer.innerHTML = `
                 <div class="grid grid-cols-2 gap-4 mt-4">
                     ${choices.map(choice => `
-                        <button class="choice-button btn btn-indigo text-3xl">${choice}</button>
+                        <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}">${choice}</button>
                     `).join('')}
                 </div>`;
             
@@ -498,7 +500,7 @@ const PracticeMode = {
                     Total Attempted: ${PracticeMode.attempted}
                 </div>
                 
-                <button id="practiceAgain" class="btn btn-green">Practice Again</button>
+                <button id="practiceAgain" class="${BTN_BASE} ${BTN_GREEN}">Practice Again</button>
                 ${getMainMenuButton()}
             </div>
         `;
@@ -607,7 +609,7 @@ const MasterMode = {
         const choices = MasterMode.generateChoices(answer);
         answerContainer.innerHTML = `
             ${choices.map(choice => `
-                <button class="choice-button btn btn-indigo text-3xl">${choice}</button>
+                <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}">${choice}</button>
             `).join('')}
         `;
         
@@ -746,7 +748,7 @@ const MasterMode = {
                     Accuracy: ${accuracy}%
                 </div>
                 
-                <button id="tryAgain" class="btn btn-blue">Try Again</button>
+                <button id="tryAgain" class="${BTN_BASE} ${BTN_BLUE}">Try Again</button>
                 ${getMainMenuButton()}
             </div>
         `;
@@ -797,35 +799,7 @@ const DuelMode = {
                     </div>
                 </div>
 
-                <div class="space-y-2">
-                    <label for="maxAdd" class="flex justify-between text-lg font-medium text-gray-700">
-                        Max Addend/Subtrahend: <span id="maxAddValue">${defaultAdd}</span>
-                    </label>
-                    <input type="range" id="maxAdd" min="10" max="${newMaxAdd}" value="${defaultAdd}" class="w-full">
-                </div>
-                
-                <div class="space-y-2">
-                    <label for="maxFact" class="flex justify-between text-lg font-medium text-gray-700">
-                        Max Factor (Multiply/Divide): <span id="maxFactValue">${defaultFact}</span>
-                    </label>
-                    <input type="range" id="maxFact" min="5" max="${newMaxFact}" value="${defaultFact}" class="w-full">
-                </div>
-                
-                <div class="space-y-2">
-                    <label for="maxFact" class="flex justify-between text-lg font-medium text-gray-700">
-                        Max Factor (Multiply/Divide): <span id="maxFactValue">${maxFactor > 0 ? maxFactor : 12}</span>
-                    </label>
-                    <input type="range" id="maxFact" min="5" max="50" value="${maxFactor > 0 ? maxFactor : 12}" class="w-full">
-                </div>
-                
-                <div class="space-y-2">
-                    <label for="timerSet" class="flex justify-between text-lg font-medium text-gray-700">
-                        Game Time: <span id="timerValue">60</span>s
-                    </label>
-                    <input type="range" id="timerSet" min="30" max="120" value="60" step="15" class="w-full">
-                </div>
-
-                <button id="startDuelGame" class="btn btn-red">Start Duel!</button>
+                <button id="startDuelGame" class="${BTN_BASE} ${BTN_RED}">Start Duel!</button>
                 ${getBackButton()}
             </div>
         `;
@@ -930,7 +904,7 @@ const DuelMode = {
         const choiceContainer = document.getElementById(`p${player.id}-choices`);
         choiceContainer.innerHTML = `
             ${choices.map((choice, index) => `
-                <button class="choice-button btn ${player.id === 1 ? 'btn-red' : 'btn-blue'} text-xl p-2 leading-none" data-answer="${choice}">
+                <button class="choice-button ${BTN_DUEL} ${player.id === 1 ? BTN_RED : BTN_BLUE}" data-answer="${choice}">
                     <span class="font-bold text-sm opacity-75">${keys[index]}</span>
                     <span class="block text-3xl font-extrabold">${choice}</span>
                 </button>
@@ -1071,7 +1045,7 @@ const DuelMode = {
                     <strong>Player 2 Score:</strong> ${DuelMode.player2.score}
                 </div>
                 
-                <button id="playDuelAgain" class="btn btn-red">Play Again</button>
+                <button id="playDuelAgain" class="${BTN_BASE} ${BTN_RED}">Play Again</button>
                 ${getMainMenuButton()}
             </div>
         `;
