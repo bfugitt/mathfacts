@@ -127,7 +127,7 @@ const App = {
     renderGradeSelect: () => {
         appTitle.textContent = 'Select Your Grade';
         let buttonsHTML = Object.keys(GRADE_CONFIG).map(grade => {
-            return `<button class="btn btn-indigo" data-grade="${grade}">
+            return `<button class="btn btn-indigo grade-btn" data-grade="${grade}">
                 ${GRADE_CONFIG[grade].name}
             </button>`;
         }).join('');
