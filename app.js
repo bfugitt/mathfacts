@@ -892,7 +892,11 @@ const DuelMode = {
                     <div class="grid grid-cols-2 gap-2" id="p2-choices"></div>
                 </div>
             </div>
+            <button id="endDuelEarly" class="btn btn-gray mt-6">End Duel</button>
         `;
+        
+        // Add listener for new End Duel button
+        document.getElementById('endDuelEarly').addEventListener('click', DuelMode.endGame);
         
         DuelMode.nextProblemForPlayer(DuelMode.player1);
         DuelMode.nextProblemForPlayer(DuelMode.player2);
