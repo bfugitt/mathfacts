@@ -4,227 +4,224 @@
  * It uses a modular structure to separate logic for each game mode.
  */
 
-// Wait for the entire page to load before running any script
-window.onload = () => {
-    // Ensure Tone.js context is started on any user interaction
-    // (This is required by modern browsers)
-    const startAudio = () => {
-        if (Tone.context.state !== 'running') {
-            Tone.context.resume();
-        }
-        document.body.removeEventListener('click', startAudio);
-        document.body.removeEventListener('keydown', startAudio);
-    };
-    document.body.addEventListener('click', startAudio);
-    document.body.addEventListener('keydown', startAudio);
-
-    // Start the application by showing the first screen
-    App.renderGradeSelect();
+// --- GLOBAL APP STATE & CONFIG ---
+const App = {
+    currentGrade: 0,
+    currentMode: '', // 'practice', 'master', or 'duel'
+    screenContainer: document.getElementById('screenContainer'),
+    appTitle: document.getElementById('appTitle'),
 };
 
-// --- 1. GLOBAL STATE & CONFIGURATION ---
-
-// Central configuration for each grade level
+// Grade-level configurations
 const GRADE_CONFIG = {
     1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 20 },
     2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 20, maxFactor: 0, targetScore: 30 },
-    3: { name: '3rd Grade', ops: ['+', '-', '*', '/'], maxAddend: 20, maxFactor: 10, targetScore: 40 },
-    4: { name: '4th Grade', ops: ['+', '-', '*', '/'], maxAddend: 20, maxFactor: 12, targetScore: 50 },
-    5: { name: '5th Grade', ops: ['+', '-', '*', '/'], maxAddend: 50, maxFactor: 12, targetScore: 50 },
-    6: { name: '6th Grade', ops: ['+', '-', '*', '/'], maxAddend: 100, maxFactor: 20, targetScore: 60 },
-    7: { name: '7th Grade', ops: ['+', '-', '*', '/'], maxAddend: 100, maxFactor: 30, targetScore: 60 },
-    8: { name: '8th Grade', ops: ['+', '-', '*', '/'], maxAddend: 100, maxFactor: 50, targetScore: 60 }
+    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 20, maxFactor: 10, targetScore: 40 },
+    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
+    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 12, targetScore: 60 },
+    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 60 },
+    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 70 },
+    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 80 },
 };
 
-// Central DOM element references
-const screenContainer = document.getElementById('screenContainer');
-const appTitle = document.getElementById('appTitle');
+// Cooldown time on wrong answer (in milliseconds)
+const COOLDOWN_TIME = 2500;
 
-// --- NEW: Tailwind Class Constants ---
-// Define all button styles here so the CDN can see and apply them
-const BTN_BASE = "font-bold py-4 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
+// --- SHARED UI CONSTANTS (Tailwind Classes) ---
+const BTN_BASE = "font-extrabold py-5 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
 const BTN_INDIGO = "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-800 active:border-indigo-600";
 const BTN_GREEN = "bg-green-600 hover:bg-green-700 text-white border-green-800 active:border-green-600";
 const BTN_BLUE = "bg-blue-600 hover:bg-blue-700 text-white border-blue-800 active:border-blue-800";
 const BTN_RED = "bg-red-600 hover:bg-red-700 text-white border-red-800 active:border-red-600";
 const BTN_GRAY = "bg-gray-500 hover:bg-gray-600 text-white py-2 text-base shadow-sm border-gray-700 active:border-gray-500 font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 border-2 border-b-4";
 const BTN_CHOICE = "font-bold py-4 px-6 rounded-lg text-3xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4"; // For 4-choice
-// FIX: Made duel buttons much larger and set up for flex content
 const BTN_DUEL = "font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4 text-lg p-3 leading-none flex flex-col justify-center items-center min-h-24"; // For duel
-// --- End New ---
 
+// --- SHARED UTILITIES ---
 
-// --- 2. SHARED UTILITIES ---
+// Sound synthesizers
+let correctSynth, incorrectSynth;
 
-/** Sound effect synthesizers (centralized) */
-const correctSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
-const incorrectSynth = new Tone.NoiseSynth({ noise: { type: "pink" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination();
-const duelWinSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" } }).toDestination();
+/** Initializes audio components after a user gesture. */
+function startAudio() {
+    if (Tone.context.state !== 'running') {
+        Tone.context.resume().then(() => {
+            if (!correctSynth) {
+                correctSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+                incorrectSynth = new Tone.NoiseSynth({ noise: { type: "pink" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination();
+            }
+        });
+    }
+}
 
-/** Plays a "correct answer" sound. */
 function playCorrectSound() {
-    if (Tone.context.state !== 'running') return;
-    correctSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n");
+    startAudio();
+    if (correctSynth) correctSynth.triggerAttackRelease(["C5", "E5"], "8n");
 }
-
-/** Plays an "incorrect answer" sound. */
 function playIncorrectSound() {
-    if (Tone.context.state !== 'running') return;
-    incorrectSynth.triggerAttackRelease("16n");
+    startAudio();
+    if (incorrectSynth) incorrectSynth.triggerAttackRelease("16n");
 }
 
-/** Plays a "duel win" sound. */
-function playDuelWinSound() {
-    if (Tone.context.state !== 'running') return;
-    duelWinSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n");
-}
-
-/**
- * Formats an operator symbol for display.
- * @param {string} op The operator (+, -, *, /)
- * @returns {string} The display-friendly symbol (x, ÷)
- */
+/** Formats operation symbols for display */
 function formatOp(op) {
-    if (op === '*') return 'x';
-    if (op === '/') return '÷';
+    if (op === 'x') return '×';
+    if (op === '÷') return '÷';
     return op;
 }
 
-/**
- * Generates a random integer between min (inclusive) and max (inclusive).
- */
-function getRandomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+/** Generates a new math problem based on settings */
+function generateProblem(settings) {
+    const op = settings.ops[Math.floor(Math.random() * settings.ops.length)];
+    let n1, n2, answer;
+    const maxAdd = settings.maxAddend;
+    const maxFact = settings.maxFactor;
 
-/**
- * Shuffles an array in place (Fisher-Yates algorithm).
- * @param {Array} array The array to shuffle.
- */
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
+    switch (op) {
+        case '+':
+            n1 = Math.floor(Math.random() * (maxAdd + 1));
+            n2 = Math.floor(Math.random() * (maxAdd + 1));
+            answer = n1 + n2;
+            break;
+        case '-':
+            n1 = Math.floor(Math.random() * (maxAdd + 1));
+            n2 = Math.floor(Math.random() * (n1 + 1)); // Ensure n2 <= n1 for no negatives
+            answer = n1 - n2;
+            break;
+        case 'x':
+            n1 = Math.floor(Math.random() * (maxFact + 1));
+            n2 = Math.floor(Math.random() * (maxFact + 1));
+            answer = n1 * n2;
+            break;
+        case '÷':
+            n2 = Math.floor(Math.random() * maxFact) + 1; // Divisor (1 to maxFact)
+            let- answer_temp = Math.floor(Math.random() * maxFact) + 1; // Result (1 to maxFact)
+            n1 = n2 * answer_temp; // Dividend
+            answer = answer_temp;
+            break;
     }
+    return { n1, n2, op, answer };
 }
 
-/**
- * Creates a "Go Back" button that returns to the mode select screen.
- * @returns {string} HTML string for the back button.
- */
+/** Generates 3 incorrect choices for a given answer */
+function getMultipleChoices(correctAnswer) {
+    let choices = new Set([correctAnswer]);
+    
+    // Add variations
+    if (correctAnswer > 10) {
+        choices.add(correctAnswer + 10);
+        choices.add(correctAnswer - 10);
+    }
+    if (correctAnswer > 1) {
+        choices.add(correctAnswer + 1);
+        choices.add(correctAnswer - 1);
+    }
+    // Add randoms until we have 4 choices
+    while (choices.size < 4) {
+        let rand = Math.floor(Math.random() * (correctAnswer + 10)) + Math.max(0, correctAnswer - 5);
+        if (rand >= 0) {
+            choices.add(rand);
+        }
+    }
+    
+    // Convert set to array and shuffle
+    return Array.from(choices).sort(() => Math.random() - 0.5);
+}
+
+/** Returns HTML for a "Back to Mode Select" button */
 function getBackButton() {
-    return `<button id="goBack" class="${BTN_GRAY} mt-6">Back to Mode Select</button>`;
+    return `<button id="goBack" class="${BTN_GRAY}">Back</button>`;
 }
 
-/**
- * Creates a "Main Menu" button that returns to the grade select screen.
- * @returns {string} HTML string for the main menu button.
- */
-function getMainMenuButton() {
-    return `<button id="goMainMenu" class="${BTN_GRAY} mt-6">Main Menu</button>`;
-}
-
-/**
- * Attaches click listener for the "Go Back" button.
- */
+/** Attaches listener to the "Back" button */
 function attachBackButtonListener(grade) {
-    document.getElementById('goBack')?.addEventListener('click', () => {
-        App.renderModeSelect(grade);
+    document.getElementById('goBack').addEventListener('click', () => {
+        // Clear any lingering game intervals
+        if (MasterMode.gameInterval) clearInterval(MasterMode.gameInterval);
+        if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
+        if (DuelMode.gameInterval) clearInterval(DuelMode.gameInterval);
+        
+        // Remove game-specific key listeners
+        document.removeEventListener('keydown', DuelMode.handleKeyboardInput);
+        document.removeEventListener('keydown', MasterMode.handleKeyboardInput);
+        document.removeEventListener('keydown', PracticeMode.handleKeyboardInput);
+
+        renderModeSelect(grade);
     });
 }
 
-/**
- * Attaches click listener for the "Main Menu" button.
- */
-function attachMainMenuButtonListener() {
-    document.getElementById('goMainMenu')?.addEventListener('click', () => {
-        App.renderGradeSelect();
-    });
-}
+// --- 1. NAVIGATION & UI RENDERING (Top Level) ---
 
+/** Renders the initial screen to select a grade. */
+function renderGradeSelect() {
+    App.appTitle.textContent = 'Select Your Grade';
+    let buttonsHTML = Object.keys(GRADE_CONFIG).map(grade => {
+        return `<button class="${BTN_BASE} ${BTN_INDIGO} grade-btn" data-grade="${grade}">
+            ${GRADE_CONFIG[grade].name}
+        </button>`;
+    }).join('');
 
-// --- 3. MAIN APP NAVIGATION (THE "ROUTER") ---
+    App.screenContainer.innerHTML = `
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            ${buttonsHTML}
+        </div>`;
 
-const App = {
-    currentGrade: 0,
-
-    /** Renders the initial screen to select a grade. */
-    renderGradeSelect: () => {
-        appTitle.textContent = 'Select Your Grade';
-        let buttonsHTML = Object.keys(GRADE_CONFIG).map(grade => {
-            return `<button class="grade-btn ${BTN_BASE} ${BTN_INDIGO}" data-grade="${grade}">
-                ${GRADE_CONFIG[grade].name}
-            </button>`;
-        }).join('');
-
-        screenContainer.innerHTML = `
-            <div class="grid grid-cols-2 gap-4">
-                ${buttonsHTML}
-            </div>`;
-
-        // Add event listeners to the new buttons
-        document.querySelectorAll('.grade-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                App.currentGrade = parseInt(e.target.dataset.grade);
-                App.renderModeSelect(App.currentGrade); // Go to the next screen
-            });
+    // Add event listeners to the new buttons
+    document.querySelectorAll('.grade-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            startAudio(); // Start audio on first click
+            App.currentGrade = parseInt(e.currentTarget.dataset.grade);
+            renderModeSelect(App.currentGrade); // Go to the next screen
         });
-    },
+    });
+}
 
-    /** Renders the screen to select a game mode for the chosen grade. */
-    renderModeSelect: (grade) => {
-        appTitle.textContent = `Grade ${grade} - Select Mode`;
-        screenContainer.innerHTML = `
-            <button id="startPractice" class="${BTN_BASE} ${BTN_GREEN}">
-                🎯 Practice
-            </button>
-            <button id="startMaster" class="${BTN_BASE} ${BTN_BLUE}">
-                ⭐ Master Test (1-Min)
-            </button>
-            <button id="startDuel" class="${BTN_BASE} ${BTN_RED}">
-                ⚔️ Facts Duel
-            </button>
-            <button id="goBackToGrade" class="${BTN_GRAY} mt-6">
-                Back to Grade Select
-            </button>
-        `;
+/** Renders the screen to select a game mode. */
+function renderModeSelect(grade) {
+    App.appTitle.textContent = `Grade ${grade} - Select Mode`;
+    App.screenContainer.innerHTML = `
+        <button id="startPractice" class="${BTN_BASE} ${BTN_GREEN}">
+            🎯 Practice
+        </button>
+        <button id="startMaster" class="${BTN_BASE} ${BTN_BLUE}">
+            ⭐ Master Test
+        </button>
+        <button id="startDuel" class="${BTN_BASE} ${BTN_RED}">
+            ⚔️ Facts Duel
+        </button>
+        <button id="goBack" class="${BTN_GRAY}">Back to Grade Select</button>
+    `;
 
-        // Add event listeners
-        document.getElementById('startPractice').addEventListener('click', () => PracticeMode.start(GRADE_CONFIG[grade]));
-        document.getElementById('startMaster').addEventListener('click', () => MasterMode.start(GRADE_CONFIG[grade]));
-        document.getElementById('startDuel').addEventListener('click', () => DuelMode.start(GRADE_CONFIG[grade]));
-        document.getElementById('goBackToGrade').addEventListener('click', App.renderGradeSelect);
-    }
-};
+    // Add event listeners
+    document.getElementById('startPractice').addEventListener('click', () => PracticeMode.start(GRADE_CONFIG[App.currentGrade]));
+    document.getElementById('startMaster').addEventListener('click', () => MasterMode.start(GRADE_CONFIG[App.currentGrade]));
+    document.getElementById('startDuel').addEventListener('click', () => DuelMode.start(GRADE_CONFIG[App.currentGrade]));
+    document.getElementById('goBack').addEventListener('click', renderGradeSelect);
+}
 
-
-// --- 4. PRACTICE MODE MODULE ---
-// (Logic combined from primary_facts_v4.html and elementary_facts_v1.html)
+// --- 2. GAME MODE: PRACTICE ---
 const PracticeMode = {
-    // State variables for this mode
-    gradeConfig: null,
+    gradeConfig: {},
+    settings: {},
     score: 0,
     attempted: 0,
-    problemHistory: [],
-    currentProblem: null,
-    isMultipleChoice: false,
-    useTimer: false,
-    gameTimer: 60,
-    gameInterval: null,
+    correct: 0,
+    problem: {},
+    isMultipleChoice: true,
     isCoolingDown: false,
-    COOLDOWN_TIME: 2500, // 2.5 second penalty
+    gameInterval: null,
+    timer: 0,
 
-    /** Starts the practice mode (shows setup screen) */
     start: (gradeConfig) => {
+        App.currentMode = 'practice';
         PracticeMode.gradeConfig = gradeConfig;
         PracticeMode.renderSetupScreen();
     },
 
-    /** Renders the setup screen for Practice Mode */
+    /** Renders setup screen for Practice Mode */
     renderSetupScreen: () => {
-        appTitle.textContent = 'Practice Setup';
+        App.appTitle.textContent = 'Practice Setup';
         
-        // Only show operations available for that grade
         const opsCheckboxes = PracticeMode.gradeConfig.ops.map(op => `
             <div class="flex items-center justify-center">
                 <input id="op-${op}" type="checkbox" checked class="form-checkbox h-5 w-5 text-indigo-600" value="${op}">
@@ -235,633 +232,550 @@ const PracticeMode = {
         screenContainer.innerHTML = `
             <div class="space-y-6">
                 <div class="text-center">
-                    <label class="text-lg font-medium text-gray-700">Operations to practice:</label>
+                    <label class="text-lg font-medium text-gray-700">Operations:</label>
                     <div class="flex justify-center space-x-6 mt-2">
                         ${opsCheckboxes}
                     </div>
                 </div>
-                
-                <div class="flex justify-between items-center bg-gray-100 p-4 rounded-lg">
-                    <label for="mcToggle" class="text-lg font-medium text-gray-700">Multiple Choice</label>
-                    <input type="checkbox" id="mcToggle" class="toggle-checkbox hidden" />
-                    <label for="mcToggle" class="toggle-label"></label>
-                </div>
-                
-                <div class="flex justify-between items-center bg-gray-100 p-4 rounded-lg">
-                    <label for="timerToggle" class="text-lg font-medium text-gray-700">1-Minute Timer</label>
-                    <input type="checkbox" id="timerToggle" class="toggle-checkbox hidden" />
-                    <label for="timerToggle" class="toggle-label"></label>
+
+                <div class="flex items-center justify-center space-x-4">
+                    <span class="text-lg font-medium ${PracticeMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Multiple Choice</span>
+                    <div class="relative inline-block w-16 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="toggleInputMode" class="toggle-checkbox absolute block w-8 h-8 rounded-full bg-white border-4 appearance-none cursor-pointer" ${!PracticeMode.isMultipleChoice ? 'checked' : ''} />
+                        <label for="toggleInputMode" class="toggle-label block overflow-hidden h-8 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                    <span class="text-lg font-medium ${!PracticeMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Keyed Entry</span>
                 </div>
 
-                <button id="startPracticeGame" class="${BTN_BASE} ${BTN_GREEN}">Start Practice</button>
+                <button id="startPracticeGame" class="${BTN_BASE} ${BTN_GREEN}">Start Practice!</button>
                 ${getBackButton()}
             </div>
         `;
 
-        // Add event listeners
+        // Event listener for toggle
+        document.getElementById('toggleInputMode').addEventListener('change', (e) => {
+            PracticeMode.isMultipleChoice = !e.target.checked;
+            // Update labels
+            document.querySelector('span[class*="Multiple Choice"]').classList.toggle('text-indigo-600');
+            document.querySelector('span[class*="Multiple Choice"]').classList.toggle('font-bold');
+            document.querySelector('span[class*="Multiple Choice"]').classList.toggle('text-gray-500');
+            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-indigo-600');
+            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('font-bold');
+            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-gray-500');
+        });
+
+        // Event listener for start
         document.getElementById('startPracticeGame').addEventListener('click', () => {
             const selectedOps = Array.from(document.querySelectorAll('.form-checkbox:checked')).map(cb => cb.value);
             if (selectedOps.length === 0) {
                 alert("Please select at least one operation.");
                 return;
             }
-            // Update gradeConfig to only use selected ops
-            PracticeMode.gradeConfig.selectedOps = selectedOps;
-            PracticeMode.isMultipleChoice = document.getElementById('mcToggle').checked;
-            PracticeMode.useTimer = document.getElementById('timerToggle').checked;
-            
-            PracticeMode.renderGameScreen();
+            PracticeMode.settings = {
+                ops: selectedOps,
+                maxAddend: PracticeMode.gradeConfig.maxAddend,
+                maxFactor: PracticeMode.gradeConfig.maxFactor
+            };
+            PracticeMode.renderGame();
         });
+        
         attachBackButtonListener(App.currentGrade);
     },
 
     /** Renders the main game screen for Practice Mode */
-    renderGameScreen: () => {
-        // Reset state
+    renderGame: () => {
+        // Reset scores and state
         PracticeMode.score = 0;
+        PracticeMode.correct = 0;
         PracticeMode.attempted = 0;
-        PracticeMode.problemHistory = [];
-        PracticeMode.gameTimer = 60;
+        PracticeMode.timer = 0;
+        PracticeMode.isCoolingDown = false;
         if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
 
-        appTitle.textContent = 'Practice!';
-        
+        App.appTitle.textContent = 'Practice Mode';
         screenContainer.innerHTML = `
-            <div class="text-center space-y-4">
-                <div class="flex justify-between items-center text-xl font-semibold">
-                    <div id="scoreDisplay" class="text-green-600">Score: 0</div>
-                    <div id="timerDisplay" class="text-gray-700 ${PracticeMode.useTimer ? '' : 'hidden'}">Time: 60s</div>
-                    <div id="attemptsDisplay" class="text-blue-600">Attempted: 0</div>
-                </div>
-                
-                <!-- NEW: Added problem/answer containers that were missing -->
-                <div id="problemDisplay" class="text-6xl md:text-7xl font-bold text-gray-800 my-8 p-6 bg-gray-100 rounded-lg">
-                    <!-- Problem will be injected here -->
-                </div>
-                
-                <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
-                
-                <div id="answerContainer" class="mt-4">
-                    <!-- Answer input/buttons will be injected here -->
-                </div>
-                <!-- END NEW -->
-
-                <button id="endGameEarly" class="${BTN_GRAY}">End Session</button>
+            <div class="flex justify-between items-center mb-4">
+                <div id="scoreDisplay" class="text-3xl font-bold text-indigo-600">Score: 0</div>
+                <div id="timerDisplay" class="text-3xl font-bold text-gray-700">0s</div>
             </div>
+            <div class="progress-bar-container mb-6">
+                <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+            </div>
+            
+            <!-- Problem and Answer Area -->
+            <div id="problemDisplay" class="text-7xl font-extrabold text-center my-10 text-gray-800"></div>
+            <div id="helperTextDisplay" class="text-center text-2xl font-medium text-green-600 h-8 mb-4"></div>
+            <div id="answerContainer"></div>
+            <!-- End Problem and Answer Area -->
+
+            <button id="endPracticeEarly" class="${BTN_GRAY} mt-6">End Practice</button>
         `;
-        
-        document.getElementById('endGameEarly').addEventListener('click', PracticeMode.endGame);
-        
-        if (PracticeMode.useTimer) {
-            PracticeMode.gameInterval = setInterval(PracticeMode.updateTimer, 1000);
-        }
-        
+
+        document.getElementById('endPracticeEarly').addEventListener('click', () => {
+            if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
+            PracticeMode.renderResults();
+        });
+
+        // Start timer
+        PracticeMode.gameInterval = setInterval(() => {
+            PracticeMode.timer++;
+            document.getElementById('timerDisplay').textContent = `${PracticeMode.timer}s`;
+        }, 1000);
+
         PracticeMode.nextProblem();
     },
 
-    /** Updates the game timer */
-    updateTimer: () => {
-        PracticeMode.gameTimer--;
-        const timerDisplay = document.getElementById('timerDisplay');
-        if (timerDisplay) {
-            timerDisplay.textContent = `Time: ${PracticeMode.gameTimer}s`;
-            if (PracticeMode.gameTimer <= 10) {
-                timerDisplay.classList.add('text-red-700', 'animate-pulse');
-            }
-            if (PracticeMode.gameTimer <= 0) {
-                PracticeMode.endGame();
-            }
-        }
-    },
-
-    /** Ends the game and shows results */
-    endGame: () => {
-        if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
-        PracticeMode.renderResults();
-    },
-
     /** Generates and displays the next problem */
     nextProblem: () => {
-        if (PracticeMode.isCoolingDown) return; // Don't load new problem during penalty
-        
-        const { n1, n2, op, answer } = PracticeMode.generateProblem();
-        PracticeMode.currentProblem = { n1, n2, op, answer };
+        PracticeMode.isCoolingDown = false;
+        PracticeMode.problem = generateProblem(PracticeMode.settings);
+        const { n1, n2, op, answer } = PracticeMode.problem;
 
-        const problemDisplay = document.getElementById('problemDisplay');
+        document.getElementById('problemDisplay').textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
+        document.getElementById('helperTextDisplay').textContent = ''; // Clear helper text
         const answerContainer = document.getElementById('answerContainer');
-        const helperText = document.getElementById('helperTextDisplay');
-        
-        if (!problemDisplay || !answerContainer || !helperText) return; // Screen not visible
-
-        problemDisplay.textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
-        helperText.textContent = ''; // Clear helper text
 
         if (PracticeMode.isMultipleChoice) {
-            const choices = PracticeMode.generateChoices(answer);
+            const choices = getMultipleChoices(answer);
             answerContainer.innerHTML = `
-                <div class="grid grid-cols-2 gap-4 mt-4">
+                <div class="grid grid-cols-2 gap-4">
                     ${choices.map(choice => `
-                        <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}">${choice}</button>
+                        <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}" data-answer="${choice}">${choice}</button>
                     `).join('')}
-                </div>`;
-            
+                </div>
+            `;
             document.querySelectorAll('.choice-button').forEach(btn => {
                 btn.addEventListener('click', () => PracticeMode.checkAnswer(btn.textContent));
+                btn.disabled = false; // Re-enable buttons
             });
         } else {
             answerContainer.innerHTML = `
-                <input type="number" id="answerInput" class="text-center text-4xl font-bold p-4 w-full max-w-xs mx-auto border-4 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 outline-none" autofocus />
+                <input type="number" id="answerInput" class="w-full text-center text-4xl p-4 border-4 border-gray-300 rounded-lg shadow-inner focus:border-indigo-500 focus:ring-indigo-500" placeholder="Type answer...">
             `;
             const input = document.getElementById('answerInput');
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && input.value !== '') {
-                    PracticeMode.checkAnswer(input.value);
-                }
-            });
             input.focus();
+            
+            // Add keydown listener for 'Enter'
+            document.removeEventListener('keydown', PracticeMode.handleKeyboardInput); // Clear old
+            document.addEventListener('keydown', PracticeMode.handleKeyboardInput);
         }
     },
-
-    /** Generates a new problem based on settings */
-    generateProblem: () => {
-        const { maxAddend, maxFactor } = PracticeMode.gradeConfig;
-        const op = PracticeMode.gradeConfig.selectedOps[getRandomInt(0, PracticeMode.gradeConfig.selectedOps.length - 1)];
-        let n1, n2, answer;
-
-        switch (op) {
-            case '+':
-                n1 = getRandomInt(0, maxAddend);
-                n2 = getRandomInt(0, maxAddend);
-                answer = n1 + n2;
-                break;
-            case '-':
-                n1 = getRandomInt(0, maxAddend);
-                n2 = getRandomInt(0, n1); // Ensure non-negative answer
-                answer = n1 - n2;
-                break;
-            case '*':
-                n1 = getRandomInt(0, maxFactor);
-                n2 = getRandomInt(0, maxFactor);
-                answer = n1 * n2;
-                break;
-            case '/':
-                // Ensure divisible, non-zero denominator
-                n2 = getRandomInt(1, maxFactor);
-                n1 = n2 * getRandomInt(0, maxFactor);
-                answer = n1 / n2;
-                break;
-        }
-        return { n1, n2, op, answer };
-    },
-
-    /** Generates multiple-choice options */
-    generateChoices: (correctAnswer) => {
-        let choices = new Set([correctAnswer]);
-        while (choices.size < 4) {
-            let offset = getRandomInt(1, 5);
-            choices.add(Math.max(0, correctAnswer - offset));
-            if (choices.size < 4) {
-                choices.add(correctAnswer + offset);
+    
+    /** Handle 'Enter' key for keyed input */
+    handleKeyboardInput: (e) => {
+        if (e.key === 'Enter') {
+            const input = document.getElementById('answerInput');
+            if (input && !PracticeMode.isCoolingDown) {
+                PracticeMode.checkAnswer(input.value);
             }
         }
-        let choiceArray = Array.from(choices);
-        shuffleArray(choiceArray);
-        return choiceArray;
     },
 
     /** Checks the user's answer */
     checkAnswer: (userAnswer) => {
-        if (PracticeMode.isCoolingDown) return; // Ignore input during penalty
+        if (PracticeMode.isCoolingDown || userAnswer === '') return;
 
-        const isCorrect = parseInt(userAnswer) === PracticeMode.currentProblem.answer;
-        const input = document.getElementById('answerInput');
-        
+        PracticeMode.isCoolingDown = true;
         PracticeMode.attempted++;
-        PracticeMode.problemHistory.push({ ...PracticeMode.currentProblem, userAnswer, isCorrect });
+        const isCorrect = parseInt(userAnswer) === PracticeMode.problem.answer;
+        const input = document.getElementById('answerInput');
 
         if (isCorrect) {
             playCorrectSound();
-            PracticeMode.score++;
-            
-            if (input && !PracticeMode.isMultipleChoice) {
-                input.classList.add('correct-flash');
-                setTimeout(() => {
-                    input.classList.remove('correct-flash');
-                    PracticeMode.nextProblem();
-                }, 200);
-            } else if (PracticeMode.isMultipleChoice) {
-                document.querySelectorAll('.choice-button').forEach(btn => {
-                    btn.disabled = true;
-                    if (parseInt(btn.textContent) === PracticeMode.currentProblem.answer) {
-                        btn.classList.add('correct-flash'); // Show correct
-                    }
-                });
-                setTimeout(PracticeMode.nextProblem, 200);
-            }
-        } else {
-            playIncorrectSound();
-            PracticeMode.isCoolingDown = true; // Start penalty
+            PracticeMode.correct++;
+            PracticeMode.score += 10;
             
             if (PracticeMode.isMultipleChoice) {
+                // Find the correct button and flash it
                 document.querySelectorAll('.choice-button').forEach(btn => {
+                    if (parseInt(btn.dataset.answer) === PracticeMode.problem.answer) {
+                        btn.classList.add('correct-flash');
+                    }
                     btn.disabled = true;
-                    const btnValue = parseInt(btn.textContent);
-                    if (btnValue === PracticeMode.currentProblem.answer) {
-                        btn.classList.add('correct-flash'); // Show correct
-                    }
-                    if (btnValue === parseInt(userAnswer)) {
-                        btn.classList.add('incorrect-flash'); // Show wrong
-                    }
                 });
-            } else if (input) {
+            } else {
+                input.classList.add('correct-flash');
                 input.disabled = true;
+            }
+            
+            setTimeout(() => {
+                if (input) input.classList.remove('correct-flash');
+                PracticeMode.nextProblem();
+            }, 500); // Shorter cooldown on correct
+
+        } else {
+            playIncorrectSound();
+            PracticeMode.score = Math.max(0, PracticeMode.score - 5); // Penalty
+            
+            if (PracticeMode.isMultipleChoice) {
+                // Flash incorrect red, correct green
+                document.querySelectorAll('.choice-button').forEach(btn => {
+                    if (parseInt(btn.dataset.answer) === PracticeMode.problem.answer) {
+                        btn.classList.add('correct-flash'); // Show correct
+                    } else if (btn.textContent === userAnswer) {
+                        btn.classList.add('incorrect-flash'); // Show incorrect
+                    }
+                    btn.disabled = true;
+                });
+            } else {
                 input.classList.add('incorrect-flash');
-                // Show the correct answer
-                document.getElementById('helperTextDisplay').textContent = `Answer: ${PracticeMode.currentProblem.answer}`;
+                input.disabled = true;
+                document.getElementById('helperTextDisplay').textContent = `Correct Answer: ${PracticeMode.problem.answer}`;
             }
 
-            // Set the cooldown timer
+            // Start 2.5s cooldown
             setTimeout(() => {
-                PracticeMode.isCoolingDown = false;
-                
-                if (!PracticeMode.isMultipleChoice && input) {
-                     input.classList.remove('incorrect-flash');
-                     input.disabled = false;
+                if (input) {
+                    input.classList.remove('incorrect-flash');
+                    input.disabled = false;
+                    input.value = '';
+                    input.focus();
                 }
                 PracticeMode.nextProblem();
-            }, PracticeMode.COOLDOWN_TIME);
+            }, COOLDOWN_TIME);
         }
         
+        // Update score and progress bar
         document.getElementById('scoreDisplay').textContent = `Score: ${PracticeMode.score}`;
-        document.getElementById('attemptsDisplay').textContent = `Attempted: ${PracticeMode.attempted}`;
+        const accuracy = (PracticeMode.attempted > 0) ? (PracticeMode.correct / PracticeMode.attempted) * 100 : 0;
+        document.getElementById('progressBar').style.width = `${accuracy}%`;
     },
 
-    /** Renders the results screen */
+    /** Renders the results screen for Practice Mode */
     renderResults: () => {
-        appTitle.textContent = 'Practice Results';
-        const accuracy = PracticeMode.attempted > 0 ? ((PracticeMode.score / PracticeMode.attempted) * 100).toFixed(0) : 0;
+        App.appTitle.textContent = 'Practice Results';
+        const accuracy = (PracticeMode.attempted > 0) ? (PracticeMode.correct / PracticeMode.attempted * 100).toFixed(0) : 0;
         
         screenContainer.innerHTML = `
-            <div class="text-center space-y-4">
-                <h2 class="text-3xl font-bold">Session Over!</h2>
-                <div class="text-2xl">
-                    You scored <strong class="text-green-600">${PracticeMode.score}</strong> with
-                    <strong class="text-blue-600">${accuracy}%</strong> accuracy.
+            <div class="text-center space-y-6">
+                <h2 class="text-4xl font-bold">Great Job!</h2>
+                <div class="grid grid-cols-2 gap-4 text-2xl">
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${PracticeMode.score}</div>
+                        <div class="text-lg text-gray-600">Final Score</div>
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${accuracy}%</div>
+                        <div class="text-lg text-gray-600">Accuracy</div>
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${PracticeMode.correct}</div>
+                        <div class="text-lg text-gray-600">Correct</div>
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${PracticeMode.attempted}</div>
+                        <div class="text-lg text-gray-600">Attempted</div>
+                    </div>
                 </div>
-                <div class_text-lg">
-                    Total Correct: ${PracticeMode.score} <br>
-                    Total Attempted: ${PracticeMode.attempted}
-                </div>
-                
                 <button id="practiceAgain" class="${BTN_BASE} ${BTN_GREEN}">Practice Again</button>
-                ${getMainMenuButton()}
+                <button id="mainMenu" class="${BTN_BASE} ${BTN_GRAY}">Main Menu</button>
             </div>
         `;
         
-        document.getElementById('practiceAgain').addEventListener('click', PracticeMode.renderSetupScreen);
-        attachMainMenuButtonListener();
+        document.getElementById('practiceAgain').addEventListener('click', () => PracticeMode.start(PracticeMode.gradeConfig));
+        document.getElementById('mainMenu').addEventListener('click', renderGradeSelect);
     }
 };
 
-
-// --- 5. MASTER MODE MODULE ---
-// (Logic from facts_master_v6.html)
+// --- 3. GAME MODE: MASTER TEST ---
 const MasterMode = {
-    // State variables
-    gradeConfig: null,
+    gradeConfig: {},
+    settings: {},
     score: 0,
-    timer: 60,
-    problemHistory: [],
-    currentProblem: null,
-    gameInterval: null,
+    attempted: 0,
+    correct: 0,
+    problem: {},
+    isMultipleChoice: true,
     isCoolingDown: false,
-    COOLDOWN_TIME: 2500, // 2.5 second penalty
-    isMultipleChoice: true, // This will now be set by the setup screen
+    gameInterval: null,
+    timer: 60,
+    targetScore: 0,
 
-    /** Starts the Master Mode */
     start: (gradeConfig) => {
+        App.currentMode = 'master';
         MasterMode.gradeConfig = gradeConfig;
-        MasterMode.renderSetupScreen(); // Go to setup screen first
+        MasterMode.targetScore = gradeConfig.targetScore;
+        MasterMode.renderSetupScreen(); // NEW: Go to setup screen first
     },
     
-    /** NEW: Renders setup screen for Master Mode */
+    /** Renders setup screen for Master Test Mode */
     renderSetupScreen: () => {
-        appTitle.textContent = 'Master Test Setup';
+        App.appTitle.textContent = 'Master Test Setup';
+        const { maxAddend, maxFactor, ops } = MasterMode.gradeConfig;
         
+        // --- NEW: Build description strings ---
+        let addSubDesc = `Addition & Subtraction problems up to ${maxAddend}.`;
+        let multDivDesc = (ops.includes('x')) ? `Multiplication & Division facts from 0 to ${maxFactor}.` : "No multiplication or division.";
+        // --- END NEW ---
+
         screenContainer.innerHTML = `
             <div class="space-y-6">
-                <div class="flex justify-between items-center bg-gray-100 p-4 rounded-lg">
-                    <label for="mcToggle" class="text-lg font-medium text-gray-700">Multiple Choice</label>
-                    <input type="checkbox" id="mcToggle" class="toggle-checkbox hidden" checked />
-                    <label for="mcToggle" class="toggle-label"></label>
+                <!-- NEW: Problem Range Description -->
+                <div class="bg-gray-100 p-6 rounded-lg shadow-inner">
+                    <h3 class="text-xl font-bold text-indigo-700 mb-3 text-center">Problem Ranges for Your Grade</h3>
+                    <ul class="list-disc list-inside space-y-2 text-lg text-gray-800">
+                        <li>${addSubDesc}</li>
+                        <li>${multDivDesc}</li>
+                    </ul>
+                    <p class="text-center font-bold text-2xl text-indigo-600 mt-4">Target Score: ${MasterMode.targetScore}</p>
                 </div>
-                
-                <div class="text-sm text-center text-gray-600">
-                    The Master Test is always a 1-minute timed challenge.
+                <!-- END NEW -->
+            
+                <div class="flex items-center justify-center space-x-4">
+                    <span class="text-lg font-medium ${MasterMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Multiple Choice</span>
+                    <div class="relative inline-block w-16 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="toggleInputMode" class="toggle-checkbox absolute block w-8 h-8 rounded-full bg-white border-4 appearance-none cursor-pointer" ${!MasterMode.isMultipleChoice ? 'checked' : ''} />
+                        <label for="toggleInputMode" class="toggle-label block overflow-hidden h-8 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                    <span class="text-lg font-medium ${!MasterMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Keyed Entry</span>
                 </div>
 
-                <button id="startMasterGame" class="${BTN_BASE} ${BTN_BLUE}">Start Test</button>
+                <button id="startMasterGame" class="${BTN_BASE} ${BTN_BLUE}">Start 1-Min Test!</button>
                 ${getBackButton()}
             </div>
         `;
 
-        // Add event listeners
+        // Event listener for toggle
+        document.getElementById('toggleInputMode').addEventListener('change', (e) => {
+            MasterMode.isMultipleChoice = !e.target.checked;
+            // Update labels
+            document.querySelector('span[class*="Multiple Choice"]').classList.toggle('text-indigo-600');
+            document.querySelector('span[class*="Multiple Choice"]').classList.toggle('font-bold');
+            document.querySelector('span[class*="Multiple Choice"]').classList.toggle('text-gray-500');
+            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-indigo-600');
+            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('font-bold');
+            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-gray-500');
+        });
+
+        // Event listener for start
         document.getElementById('startMasterGame').addEventListener('click', () => {
-            MasterMode.isMultipleChoice = document.getElementById('mcToggle').checked;
+            MasterMode.settings = {
+                ops: MasterMode.gradeConfig.ops,
+                maxAddend: MasterMode.gradeConfig.maxAddend,
+                maxFactor: MasterMode.gradeConfig.maxFactor
+            };
             MasterMode.renderGame();
         });
+        
         attachBackButtonListener(App.currentGrade);
     },
 
-
-    /** Renders the game screen for Master Mode */
+    /** Renders the main game screen for Master Mode */
     renderGame: () => {
-        // Reset state
+        // Reset scores and state
         MasterMode.score = 0;
+        MasterMode.correct = 0;
+        MasterMode.attempted = 0;
         MasterMode.timer = 60;
-        MasterMode.problemHistory = [];
+        MasterMode.isCoolingDown = false;
         if (MasterMode.gameInterval) clearInterval(MasterMode.gameInterval);
 
-        appTitle.textContent = 'Master Test';
-        const { targetScore } = MasterMode.gradeConfig;
-        
+        App.appTitle.textContent = 'Master Test';
         screenContainer.innerHTML = `
-            <div class="text-center space-y-4">
-                <div class="flex justify-between items-center text-xl font-semibold">
-                    <div id="scoreDisplay" class="text-green-600">Score: 0</div>
-                    <div id="timerDisplay" class="text-blue-600">Time: 60s</div>
-                </div>
-                
-                <div class="progress-bar-container w-full">
-                    <div id="scoreProgress" class="progress-bar" style="width: 0%;"></div>
-                </div>
-                <div class="text-sm text-gray-600">Target Score: ${targetScore}</div>
-                
-                <div id="problemDisplay" class="text-6xl md:text-7xl font-bold text-gray-800 my-8 p-6 bg-gray-100 rounded-lg">
-                    <!-- Problem will be injected here -->
-                </div>
-                
-                <!-- Helper text for showing correct answer (though not used in MC) -->
-                <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
-                
-                <div id="answerContainer" class="mt-4">
-                    <!-- Answer input/buttons will be injected here -->
-                </div>
-                ${getBackButton()}
+            <div class="flex justify-between items-center mb-4">
+                <div id="scoreDisplay" class="text-3xl font-bold text-indigo-600">Score: 0</div>
+                <div id="timerDisplay" class="text-3xl font-bold text-gray-700">60s</div>
             </div>
+            <div class="progress-bar-container mb-6">
+                <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+            </div>
+            
+            <!-- Problem and Answer Area -->
+            <div id="problemDisplay" class="text-7xl font-extrabold text-center my-10 text-gray-800"></div>
+            <div id="helperTextDisplay" class="text-center text-2xl font-medium text-green-600 h-8 mb-4"></div>
+            <div id="answerContainer"></div>
+            <!-- End Problem and Answer Area -->
         `;
         
-        attachBackButtonListener(App.currentGrade);
-        
-        // Start game
-        MasterMode.startTimer();
-        MasterMode.nextProblem();
-    },
-
-    /** Starts the 60-second timer */
-    startTimer: () => {
+        // Start timer
         MasterMode.gameInterval = setInterval(() => {
             MasterMode.timer--;
-            MasterMode.updateTimerDisplay();
+            document.getElementById('timerDisplay').textContent = `${MasterMode.timer}s`;
+            if (MasterMode.timer <= 10) {
+                document.getElementById('timerDisplay').classList.add('text-red-700', 'animate-pulse');
+            }
             if (MasterMode.timer <= 0) {
-                MasterMode.endGame();
+                clearInterval(MasterMode.gameInterval);
+                MasterMode.renderResults();
             }
         }, 1000);
-    },
 
-    /** Ends the game and shows results */
-    endGame: () => {
-        clearInterval(MasterMode.gameInterval);
-        MasterMode.renderResults();
+        MasterMode.nextProblem();
     },
 
     /** Generates and displays the next problem */
     nextProblem: () => {
-        if (MasterMode.isCoolingDown) return;
+        if (MasterMode.timer <= 0) return; // Stop if timer ran out
+        MasterMode.isCoolingDown = false;
+        MasterMode.problem = generateProblem(MasterMode.settings);
+        const { n1, n2, op, answer } = MasterMode.problem;
 
-        const { n1, n2, op, answer } = MasterMode.generateProblem();
-        MasterMode.currentProblem = { n1, n2, op, answer };
-        
-        const problemDisplay = document.getElementById('problemDisplay');
+        document.getElementById('problemDisplay').textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
+        document.getElementById('helperTextDisplay').textContent = '';
         const answerContainer = document.getElementById('answerContainer');
-        const helperText = document.getElementById('helperTextDisplay');
-        if (!problemDisplay || !answerContainer || !helperText) return; // Game ended
 
-        problemDisplay.textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
-        helperText.textContent = ''; // Clear helper text
-        
         if (MasterMode.isMultipleChoice) {
-            const choices = MasterMode.generateChoices(answer);
+            const choices = getMultipleChoices(answer);
             answerContainer.innerHTML = `
-                <div class="grid grid-cols-2 gap-4 mt-4">
+                <div class="grid grid-cols-2 gap-4">
                     ${choices.map(choice => `
-                        <button class="choice-button ${BTN_CHOICE} ${BTN_INDIGO}">${choice}</button>
+                        <button class="choice-button ${BTN_CHOICE} ${BTN_BLUE}" data-answer="${choice}">${choice}</button>
                     `).join('')}
-                </div>`;
-            
+                </div>
+            `;
             document.querySelectorAll('.choice-button').forEach(btn => {
                 btn.addEventListener('click', () => MasterMode.checkAnswer(btn.textContent));
+                btn.disabled = false;
             });
         } else {
             answerContainer.innerHTML = `
-                <input type="number" id="answerInput" class="text-center text-4xl font-bold p-4 w-full max-w-xs mx-auto border-4 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 outline-none" autofocus />
+                <input type="number" id="answerInput" class="w-full text-center text-4xl p-4 border-4 border-gray-300 rounded-lg shadow-inner focus:border-indigo-500 focus:ring-indigo-500" placeholder="Type answer...">
             `;
             const input = document.getElementById('answerInput');
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && input.value !== '') {
-                    MasterMode.checkAnswer(input.value);
-                }
-            });
             input.focus();
+            
+            // Add keydown listener for 'Enter'
+            document.removeEventListener('keydown', MasterMode.handleKeyboardInput); // Clear old
+            document.addEventListener('keydown', MasterMode.handleKeyboardInput);
         }
     },
 
-    /** Generates a new problem (uses same logic as Practice Mode) */
-    generateProblem: () => {
-        const { maxAddend, maxFactor, ops } = MasterMode.gradeConfig;
-        const op = ops[getRandomInt(0, ops.length - 1)];
-        let n1, n2, answer;
-
-        switch (op) {
-            case '+':
-                n1 = getRandomInt(0, maxAddend);
-                n2 = getRandomInt(0, maxAddend);
-                answer = n1 + n2;
-                break;
-            case '-':
-                n1 = getRandomInt(0, maxAddend);
-                n2 = getRandomInt(0, n1); // Ensure non-negative answer
-                answer = n1 - n2;
-                break;
-            case '*':
-                n1 = getRandomInt(0, maxFactor);
-                n2 = getRandomInt(0, maxFactor);
-                answer = n1 * n2;
-                break;
-            case '/':
-                n2 = getRandomInt(1, maxFactor);
-                n1 = n2 * getRandomInt(0, maxFactor);
-                answer = n1 / n2;
-                break;
-        }
-        return { n1, n2, op, answer };
-    },
-
-    /** Generates multiple-choice options (uses same logic as Practice Mode) */
-    generateChoices: (correctAnswer) => {
-        let choices = new Set([correctAnswer]);
-        while (choices.size < 4) {
-            let offset = getRandomInt(1, 5);
-            choices.add(Math.max(0, correctAnswer - offset));
-            if (choices.size < 4) {
-                choices.add(correctAnswer + offset);
+    /** Handle 'Enter' key for keyed input */
+    handleKeyboardInput: (e) => {
+        if (e.key === 'Enter') {
+            const input = document.getElementById('answerInput');
+            if (input && !MasterMode.isCoolingDown) {
+                MasterMode.checkAnswer(input.value);
             }
         }
-        let choiceArray = Array.from(choices);
-        shuffleArray(choiceArray);
-        return choiceArray;
     },
 
     /** Checks the user's answer */
     checkAnswer: (userAnswer) => {
-        if (MasterMode.isCoolingDown) return;
+        if (MasterMode.isCoolingDown || userAnswer === '' || MasterMode.timer <= 0) return;
 
-        const isCorrect = parseInt(userAnswer) === MasterMode.currentProblem.answer;
-        MasterMode.problemHistory.push({ ...MasterMode.currentProblem, userAnswer, isCorrect });
-        
-        MasterMode.isCoolingDown = true; // Block input immediately
-        
-        if (MasterMode.isMultipleChoice) {
-            const buttons = document.querySelectorAll('.choice-button');
-            buttons.forEach(btn => {
-                btn.disabled = true;
-                const btnValue = parseInt(btn.textContent);
-                if (btnValue === MasterMode.currentProblem.answer) {
-                    btn.classList.add('correct-flash'); // Always show correct answer
-                }
-                if (!isCorrect && btnValue === parseInt(userAnswer)) {
-                    btn.classList.add('incorrect-flash'); // Show user's wrong answer
-                }
-            });
-        } else {
-            const input = document.getElementById('answerInput');
-            if (input) {
-                input.disabled = true;
-                if (!isCorrect) {
-                    input.classList.add('incorrect-flash');
-                    document.getElementById('helperTextDisplay').textContent = `Answer: ${MasterMode.currentProblem.answer}`;
-                } else {
-                    input.classList.add('correct-flash');
-                }
-            }
-        }
-
+        MasterMode.isCoolingDown = true;
+        MasterMode.attempted++;
+        const isCorrect = parseInt(userAnswer) === MasterMode.problem.answer;
+        const input = document.getElementById('answerInput');
 
         if (isCorrect) {
             playCorrectSound();
-            MasterMode.score++;
-            MasterMode.updateScoreDisplay();
+            MasterMode.correct++;
+            MasterMode.score++; // 1 point per correct answer
+            
+            if (MasterMode.isMultipleChoice) {
+                document.querySelectorAll('.choice-button').forEach(btn => {
+                    if (parseInt(btn.dataset.answer) === MasterMode.problem.answer) {
+                        btn.classList.add('correct-flash');
+                    }
+                    btn.disabled = true;
+                });
+            } else {
+                input.classList.add('correct-flash');
+                input.disabled = true;
+            }
+            
             setTimeout(() => {
-                if (!MasterMode.isMultipleChoice) {
-                    const input = document.getElementById('answerInput');
-                    if (input) input.classList.remove('correct-flash');
-                }
-                MasterMode.isCoolingDown = false;
+                if (input) input.classList.remove('correct-flash');
                 MasterMode.nextProblem();
-            }, 200); // Quick transition
+            }, 500); // Shorter cooldown on correct
+
         } else {
             playIncorrectSound();
-            // No score penalty, just time penalty
-            setTimeout(() => {
-                if (!MasterMode.isMultipleChoice) {
-                    const input = document.getElementById('answerInput');
-                    if (input) {
-                        input.classList.remove('incorrect-flash');
-                        input.disabled = false;
+            
+            if (MasterMode.isMultipleChoice) {
+                document.querySelectorAll('.choice-button').forEach(btn => {
+                    if (parseInt(btn.dataset.answer) === MasterMode.problem.answer) {
+                        btn.classList.add('correct-flash');
+                    } else if (btn.textContent === userAnswer) {
+                        btn.classList.add('incorrect-flash');
                     }
-                }
-                MasterMode.isCoolingDown = false;
-                MasterMode.nextProblem();
-            }, MasterMode.COOLDOWN_TIME);
-        }
-    },
-
-    /** Updates the score display and progress bar */
-    updateScoreDisplay: () => {
-        const scoreDisplay = document.getElementById('scoreDisplay');
-        if (scoreDisplay) {
-            scoreDisplay.textContent = `Score: ${MasterMode.score}`;
-        }
-        const progress = document.getElementById('scoreProgress');
-        if (progress) {
-            const { targetScore } = MasterMode.gradeConfig;
-            const percent = Math.min(100, (MasterMode.score / targetScore) * 100);
-            progress.style.width = `${percent}%`;
-        }
-    },
-
-    /** Updates the timer display */
-    updateTimerDisplay: () => {
-        const timerDisplay = document.getElementById('timerDisplay');
-        if (timerDisplay) {
-            timerDisplay.textContent = `Time: ${MasterMode.timer}s`;
-            if (MasterMode.timer <= 10) {
-                timerDisplay.classList.add('text-red-700', 'animate-pulse');
+                    btn.disabled = true;
+                });
+            } else {
+                input.classList.add('incorrect-flash');
+                input.disabled = true;
+                document.getElementById('helperTextDisplay').textContent = `Correct Answer: ${MasterMode.problem.answer}`;
             }
+
+            // Start 2.5s cooldown
+            setTimeout(() => {
+                if (input) {
+                    input.classList.remove('incorrect-flash');
+                    input.disabled = false;
+                    input.value = '';
+                    input.focus();
+                }
+                MasterMode.nextProblem();
+            }, COOLDOWN_TIME);
         }
+        
+        // Update score and progress bar
+        document.getElementById('scoreDisplay').textContent = `Score: ${MasterMode.score}`;
+        const progress = (MasterMode.targetScore > 0) ? (MasterMode.score / MasterMode.targetScore) * 100 : 0;
+        document.getElementById('progressBar').style.width = `${Math.min(progress, 100)}%`;
     },
 
-    /** Renders the results screen */
+    /** Renders the results screen for Master Mode */
     renderResults: () => {
-        appTitle.textContent = 'Test Results';
-        const { targetScore } = MasterMode.gradeConfig;
-        const passed = MasterMode.score >= targetScore;
-        const accuracy = MasterMode.problemHistory.length > 0 ? ((MasterMode.score / MasterMode.problemHistory.length) * 100).toFixed(0) : 0;
+        App.appTitle.textContent = 'Test Results';
+        const accuracy = (MasterMode.attempted > 0) ? (MasterMode.correct / MasterMode.attempted * 100).toFixed(0) : 0;
+        const passed = MasterMode.score >= MasterMode.targetScore;
         
+        let- resultMessage = passed
+            ? `<h2 class="text-4xl font-bold text-green-600">You Passed!</h2><p class="text-2xl text-gray-700">You met the target score of ${MasterMode.targetScore}!</p>`
+            : `<h2 class="text-4xl font-bold text-red-600">Try Again!</h2><p class="text-2xl text-gray-700">You were ${MasterMode.targetScore - MasterMode.score} points away from the target of ${MasterMode.targetScore}.</p>`;
+
         screenContainer.innerHTML = `
-            <div class="text-center space-y-4">
-                <h2 class="text-4xl font-extrabold ${passed ? 'text-green-600' : 'text-red-600'}">
-                    ${passed ? 'Level Mastered!' : 'Try Again!'}
-                </h2>
-                <div class="text-2xl">
-                    You scored <strong class="text-blue-600">${MasterMode.score}</strong>
-                    (Target: ${targetScore})
+            <div class="text-center space-y-6">
+                ${resultMessage}
+                <div class="grid grid-cols-2 gap-4 text-2xl">
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${MasterMode.score}</div>
+                        <div class="text-lg text-gray-600">Final Score</div>
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${accuracy}%</div>
+                        <div class="text-lg text-gray-600">Accuracy</div>
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${MasterMode.correct}</div>
+                        <div class="text-lg text-gray-600">Correct</div>
+                    </div>
+                    <div class="bg-gray-100 p-6 rounded-lg">
+                        <div class="font-bold text-5xl text-indigo-600">${MasterMode.attempted}</div>
+                        <div class="text-lg text-gray-600">Attempted</div>
+                    </div>
                 </div>
-                <div class="text-lg">
-                    Accuracy: ${accuracy}%
-                </div>
-                
                 <button id="tryAgain" class="${BTN_BASE} ${BTN_BLUE}">Try Again</button>
-                ${getMainMenuButton()}
+                <button id="mainMenu" class="${BTN_BASE} ${BTN_GRAY}">Main Menu</button>
             </div>
         `;
         
         document.getElementById('tryAgain').addEventListener('click', () => MasterMode.start(MasterMode.gradeConfig));
-        attachMainMenuButtonListener();
+        document.getElementById('mainMenu').addEventListener('click', renderGradeSelect);
     }
 };
 
-
-// --- 6. DUEL MODE MODULE ---
-// (Logic from facts_battle_v4.html)
+// --- 4. GAME MODE: FACTS DUEL ---
 const DuelMode = {
-    // State
-    gradeConfig: null,
+    gradeConfig: {},
     settings: {},
+    player1: { id: 1, score: 0, problem: {}, choices: [], isCoolingDown: false, containerId: 'player1Container', problemId: 'p1-problem', choicesId: 'p1-choices', scoreId: 'p1-score' },
+    player2: { id: 2, score: 0, problem: {}, choices: [], isCoolingDown: false, containerId: 'player2Container', problemId: 'p2-problem', choicesId: 'p2-choices', scoreId: 'p2-score' },
     timer: 60,
     gameInterval: null,
-    player1: null,
-    player2: null,
-    
-    /** Starts Duel Mode (shows setup screen) */
+
     start: (gradeConfig) => {
+        App.currentMode = 'duel';
         DuelMode.gradeConfig = gradeConfig;
         DuelMode.renderSetupScreen();
     },
 
     /** Renders setup screen for Duel Mode */
     renderSetupScreen: () => {
-        appTitle.textContent = 'Duel Setup';
+        App.appTitle.textContent = 'Duel Setup';
         const { maxAddend, maxFactor } = DuelMode.gradeConfig;
         
         // Use user's requested caps
@@ -936,20 +850,23 @@ const DuelMode = {
         attachBackButtonListener(App.currentGrade);
     },
 
-    /** Renders the two-player game screen */
+    /** Renders the main game screen for Duel Mode */
     renderGame: () => {
-        appTitle.textContent = 'Duel!';
+        // Reset scores and state
+        DuelMode.player1.score = 0;
+        DuelMode.player2.score = 0;
+        DuelMode.player1.isCoolingDown = false;
+        DuelMode.player2.isCoolingDown = false;
         DuelMode.timer = DuelMode.settings.timer;
-        
-        // Initialize player states
-        DuelMode.player1 = { id: 1, score: 0, isCoolingDown: false, problem: null, containerId: 'player1Container' };
-        DuelMode.player2 = { id: 2, score: 0, isCoolingDown: false, problem: null, containerId: 'player2Container' };
+        if (DuelMode.gameInterval) clearInterval(DuelMode.gameInterval);
 
+        App.appTitle.textContent = 'Facts Duel!';
         screenContainer.innerHTML = `
             <div class="text-center mb-4">
-                <div id="timerDisplay" class="text-3xl font-bold text-blue-600">Time: ${DuelMode.timer}s</div>
+                <div id="timerDisplay" class="text-5xl font-extrabold text-gray-800">${DuelMode.timer}s</div>
             </div>
-            <div class="flex flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0">
+            
+            <div class="flex flex-col md:flex-row gap-6">
                 <!-- Player 1 -->
                 <div id="player1Container" class="flex-1 bg-red-100 p-4 rounded-lg shadow-md transition-all duration-100">
                     <h2 class="text-2xl font-bold text-red-700 text-center">Player 1 (A, S, D, F)</h2>
@@ -970,40 +887,53 @@ const DuelMode = {
         `;
         
         // Add listener for new End Duel button
-        document.getElementById('endDuelEarly').addEventListener('click', DuelMode.endGame);
-        
+        document.getElementById('endDuelEarly').addEventListener('click', () => {
+            if (DuelMode.gameInterval) clearInterval(DuelMode.gameInterval);
+            DuelMode.renderResults();
+        });
+
+        // Start timer
+        DuelMode.gameInterval = setInterval(() => {
+            DuelMode.timer--;
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (timerDisplay) {
+                timerDisplay.textContent = `${DuelMode.timer}s`;
+                if (DuelMode.timer <= 10) {
+                    timerDisplay.classList.add('text-red-700', 'animate-pulse');
+                }
+            }
+            if (DuelMode.timer <= 0) {
+                clearInterval(DuelMode.gameInterval);
+                DuelMode.renderResults();
+            }
+        }, 1000);
+
+        // Initial problems
         DuelMode.nextProblemForPlayer(DuelMode.player1);
         DuelMode.nextProblemForPlayer(DuelMode.player2);
         
-        DuelMode.setupGameListeners();
-        
-        DuelMode.gameInterval = setInterval(() => {
-            DuelMode.timer--;
-            document.getElementById('timerDisplay').textContent = `Time: ${DuelMode.timer}s`;
-            if (DuelMode.timer <= 10) {
-                document.getElementById('timerDisplay').classList.add('text-red-700', 'animate-pulse');
-            }
-            if (DuelMode.timer <= 0) {
-                DuelMode.endGame();
-            }
-        }, 1000);
+        // Setup keyboard listeners
+        document.removeEventListener('keydown', DuelMode.handleKeyboardInput); // Clear old
+        document.addEventListener('keydown', DuelMode.handleKeyboardInput);
     },
-
-    /** Generates and displays a new problem for a specific player */
+    
+    /** Generates and displays the next problem for a specific player */
     nextProblemForPlayer: (player) => {
         if (player.isCoolingDown) return;
-
-        const { n1, n2, op, answer } = DuelMode.generateProblem();
-        player.problem = { n1, n2, op, answer };
         
-        const choices = DuelMode.generateChoices(answer);
+        player.problem = generateProblem(DuelMode.settings);
+        player.choices = getMultipleChoices(player.problem.answer);
+        const { n1, n2, op } = player.problem;
         const keys = player.id === 1 ? ['A', 'S', 'D', 'F'] : ['J', 'K', 'L', ';'];
         
-        document.getElementById(`p${player.id}-problem`).textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
-        
-        const choiceContainer = document.getElementById(`p${player.id}-choices`);
+        const problemContainer = document.getElementById(player.problemId);
+        const choiceContainer = document.getElementById(player.choicesId);
+
+        if (!problemContainer || !choiceContainer) return; // Exit if elements aren't ready
+
+        problemContainer.textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
         choiceContainer.innerHTML = `
-            ${choices.map((choice, index) => `
+            ${player.choices.map((choice, index) => `
                 <button class="choice-button ${BTN_DUEL} ${player.id === 1 ? BTN_RED : BTN_BLUE}" data-answer="${choice}">
                     <span class="font-bold text-sm opacity-75">${keys[index]}</span>
                     <!-- FIX: Increased font size for the answer -->
@@ -1012,64 +942,24 @@ const DuelMode = {
             `).join('')}
         `;
         
-        // Add click listeners for touch devices
+        // Add click listeners for touch
         choiceContainer.querySelectorAll('.choice-button').forEach((btn, index) => {
             btn.addEventListener('click', () => {
-                if (player.isCoolingDown) return;
-                DuelMode.checkAnswer(player, index);
+                if (!player.isCoolingDown) {
+                    DuelMode.checkAnswer(player, index);
+                }
             });
         });
     },
 
-    /** Generates a problem based on duel settings */
-    generateProblem: () => {
-        const { maxAddend, maxFactor, ops } = DuelMode.settings;
-        const op = ops[getRandomInt(0, ops.length - 1)];
-        let n1, n2, answer;
+    /** Handle keyboard input for both players */
+    handleKeyboardInput: (e) => {
+        if (DuelMode.timer <= 0) return;
         
-        switch (op) {
-            case '+':
-                n1 = getRandomInt(0, maxAddend); n2 = getRandomInt(0, maxAddend);
-                answer = n1 + n2; break;
-            case '-':
-                n1 = getRandomInt(0, maxAddend); n2 = getRandomInt(0, n1);
-                answer = n1 - n2; break;
-            case '*':
-                n1 = getRandomInt(0, maxFactor); n2 = getRandomInt(0, maxFactor);
-                answer = n1 * n2; break;
-            case '/':
-                n2 = getRandomInt(1, maxFactor); n1 = n2 * getRandomInt(0, maxFactor);
-                answer = n1 / n2; break;
-        }
-        return { n1, n2, op, answer };
-    },
-    
-    /** Generates choices (same as other modes) */
-    generateChoices: (correctAnswer) => {
-        let choices = new Set([correctAnswer]);
-        while (choices.size < 4) {
-            let offset = getRandomInt(1, 5);
-            choices.add(Math.max(0, correctAnswer - offset));
-            if (choices.size < 4) {
-                choices.add(correctAnswer + offset);
-            }
-        }
-        return Array.from(choices);
-    },
-
-    /** Sets up the keyboard listeners for two players */
-    setupGameListeners: () => {
-        // Remove old listener to prevent duplicates
-        document.removeEventListener('keydown', DuelMode.handleTwoPlayerInput);
-        document.addEventListener('keydown', DuelMode.handleTwoPlayerInput);
-    },
-
-    /** Handles keydown events for A,S,D,F and J,K,L,; */
-    handleTwoPlayerInput: (event) => {
         let playerTarget = null;
         let choiceIndex = -1;
 
-        switch (event.key.toLowerCase()) {
+        switch (e.key.toLowerCase()) {
             case 'a': playerTarget = DuelMode.player1; choiceIndex = 0; break;
             case 's': playerTarget = DuelMode.player1; choiceIndex = 1; break;
             case 'd': playerTarget = DuelMode.player1; choiceIndex = 2; break;
@@ -1081,77 +971,102 @@ const DuelMode = {
             case ';': playerTarget = DuelMode.player2; choiceIndex = 3; break;
         }
 
-        if (playerTarget && choiceIndex !== -1) {
-            if (playerTarget.isCoolingDown) return; // Ignore input
-            event.preventDefault();
+        if (playerTarget && choiceIndex !== -1 && !playerTarget.isCoolingDown) {
+            e.preventDefault();
             DuelMode.checkAnswer(playerTarget, choiceIndex);
         }
     },
 
-    /** Checks a player's answer by index */
+    /** Checks a player's answer based on choice index */
     checkAnswer: (player, choiceIndex) => {
-        if (player.isCoolingDown) return;
-
-        const choiceButtons = document.querySelectorAll(`#${player.containerId} .choice-button`);
-        const chosenAnswer = parseInt(choiceButtons[choiceIndex].dataset.answer);
-        const isCorrect = chosenAnswer === player.problem.answer;
-        const playerContainer = document.getElementById(player.containerId);
+        if (player.isCoolingDown || DuelMode.timer <= 0) return;
+        
+        player.isCoolingDown = true;
+        const selectedAnswer = player.choices[choiceIndex];
+        const isCorrect = selectedAnswer === player.problem.answer;
+        const container = document.getElementById(player.containerId);
+        const choiceButtons = document.getElementById(player.choicesId).querySelectorAll('button');
 
         if (isCorrect) {
             playCorrectSound();
             player.score++;
-            document.getElementById(`p${player.id}-score`).textContent = `Score: ${player.score}`;
-            playerContainer.classList.add('duel-correct-flash');
-            setTimeout(() => {
-                playerContainer.classList.remove('duel-correct-flash');
-                DuelMode.nextProblemForPlayer(player);
-            }, 200);
-        } else {
-            playIncorrectSound();
-            player.score = Math.max(0, player.score - 1); // Lose a point
-            player.isCoolingDown = true;
-            document.getElementById(`p${player.id}-score`).textContent = `Score: ${player.score}`;
-            playerContainer.classList.add('duel-incorrect-flash');
+            container.classList.add('duel-correct-flash');
+            
+            // Flash the correct button
+            choiceButtons[choiceIndex].classList.add('correct-flash');
             
             setTimeout(() => {
-                playerContainer.classList.remove('duel-incorrect-flash');
+                container.classList.remove('duel-correct-flash');
                 player.isCoolingDown = false;
                 DuelMode.nextProblemForPlayer(player);
-            }, 2500); // 2.5 second penalty
+            }, 500); // Shorter cooldown on correct
+
+        } else {
+            playIncorrectSound();
+            player.score = Math.max(0, player.score - 1); // Penalty
+            container.classList.add('duel-incorrect-flash');
+            
+            // Flash incorrect red, correct green
+            choiceButtons.forEach((btn, index) => {
+                if (index === choiceIndex) {
+                    btn.classList.add('incorrect-flash');
+                }
+                if (player.choices[index] === player.problem.answer) {
+                    btn.classList.add('correct-flash');
+                }
+            });
+
+            setTimeout(() => {
+                container.classList.remove('duel-incorrect-flash');
+                player.isCoolingDown = false;
+                DuelMode.nextProblemForPlayer(player);
+            }, COOLDOWN_TIME); // Longer cooldown on incorrect
         }
+        
+        document.getElementById(player.scoreId).textContent = `Score: ${player.score}`;
     },
 
-    /** Ends the duel and shows results */
-    endGame: () => {
-        clearInterval(DuelMode.gameInterval);
-        document.removeEventListener('keydown', DuelMode.handleTwoPlayerInput); // Clean up listener
-
+    /** Renders the results screen for Duel Mode */
+    renderResults: () => {
+        App.appTitle.textContent = 'Duel Over!';
         let winnerMessage = '';
         if (DuelMode.player1.score > DuelMode.player2.score) {
-            winnerMessage = '<h2 class="text-4xl font-extrabold text-red-600">Player 1 Wins!</h2>';
-            playDuelWinSound();
+            winnerMessage = '<h2 class="text-4xl font-bold text-red-600">Player 1 Wins!</h2>';
         } else if (DuelMode.player2.score > DuelMode.player1.score) {
-            winnerMessage = '<h2 class="text-4xl font-extrabold text-blue-600">Player 2 Wins!</h2>';
-            playDuelWinSound();
+            winnerMessage = '<h2 class="text-4xl font-bold text-blue-600">Player 2 Wins!</h2>';
         } else {
-            winnerMessage = '<h2 class="text-4xl font-extrabold text-gray-700">It\'s a Draw!</h2>';
+            winnerMessage = '<h2 class="text-4xl font-bold text-indigo-600">It\'s a Tie!</h2>';
         }
 
         screenContainer.innerHTML = `
             <div class="text-center space-y-6">
-                <h2 class="text-3xl font-bold">Time's Up!</h2>
                 ${winnerMessage}
-                <div class="text-2xl">
-                    <strong>Player 1 Score:</strong> ${DuelMode.player1.score} <br>
-                    <strong>Player 2 Score:</strong> ${DuelMode.player2.score}
+                <div class="flex flex-col md:flex-row gap-6 text-2xl">
+                    <!-- Player 1 Score -->
+                    <div class="flex-1 bg-red-100 p-6 rounded-lg">
+                        <div class="text-lg text-red-700 font-bold">Player 1</div>
+                        <div class="font-extrabold text-6xl text-red-600">${DuelMode.player1.score}</div>
+                        <div class="text-lg text-gray-600">Final Score</div>
+                    </div>
+                    <!-- Player 2 Score -->
+                    <div class="flex-1 bg-blue-100 p-6 rounded-lg">
+                        <div class="text-lg text-blue-700 font-bold">Player 2</div>
+                        <div class="font-extrabold text-6xl text-blue-600">${DuelMode.player2.score}</div>
+                        <div class="text-lg text-gray-600">Final Score</div>
+                    </div>
                 </div>
-                
-                <button id="playDuelAgain" class="${BTN_BASE} ${BTN_RED}">Play Again</button>
-                ${getMainMenuButton()}
+                <button id="playAgain" class="${BTN_BASE} ${BTN_RED}">Play Again</button>
+                <button id="mainMenu" class="${BTN_BASE} ${BTN_GRAY}">Main Menu</button>
             </div>
         `;
         
-        document.getElementById('playDuelAgain').addEventListener('click', DuelMode.renderSetupScreen);
-        attachMainMenuButtonListener();
+        document.getElementById('playAgain').addEventListener('click', () => DuelMode.start(DuelMode.gradeConfig));
+        document.getElementById('mainMenu').addEventListener('click', renderGradeSelect);
     }
+};
+
+// --- APP INITIALIZATION ---
+window.onload = () => {
+    // Start by showing the grade selection screen
+    renderGradeSelect();
 };
