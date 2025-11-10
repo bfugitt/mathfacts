@@ -233,6 +233,16 @@ const PracticeMode = {
     isCoolingDown: false,
     gameInterval: null,
     timer: 0,
+    // NEW: Add default limits
+    timeLimit: 0, 
+    problemLimit: 0,
+    
+    // NEW: Mappings for sliders
+    TIME_MAP: { '0': 'No Limit', '1': '30s', '2': '60s', '3': '120s' },
+    TIME_VAL_MAP: { '0': 0, '1': 30, '2': 60, '3': 120 },
+    PROB_MAP: { '0': 'No Limit', '1': '10', '2': '20', '3': '40', '4': '50' },
+    PROB_VAL_MAP: { '0': 0, '1': 10, '2': 20, '3': 40, '4': 50 },
+
 
     start: (gradeConfig) => {
         App.currentMode = 'practice';
@@ -269,6 +279,19 @@ const PracticeMode = {
                     <span class="text-lg font-medium ${!PracticeMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Keyed Entry</span>
                 </div>
 
+                <!-- NEW: Sliders for Time and Problem Limits -->
+                <div class="space-y-4">
+                    <div>
+                        <label for="practiceTimeLimit" class="block text-sm font-medium text-gray-700">Time Limit: <span id="practiceTimeValue" class="font-bold">No Limit</span></label>
+                        <input type="range" id="practiceTimeLimit" min="0" max="3" value="0" step="1" class="mt-1">
+                    </div>
+                    <div>
+                        <label for="practiceProblemLimit" class="block text-sm font-medium text-gray-700">Problem Limit: <span id="practiceProblemValue" class="font-bold">No Limit</span></label>
+                        <input type="range" id="practiceProblemLimit" min="0" max="4" value="0" step="1" class="mt-1">
+                    </div>
+                </div>
+                <!-- END NEW -->
+
                 <button id="startPracticeGame" class="${BTN_BASE} ${BTN_GREEN}">Start Practice!</button>
                 ${getBackButton()}
             </div>
@@ -285,6 +308,14 @@ const PracticeMode = {
             document.querySelector('span[class*="Keyed Entry"]').classList.toggle('font-bold');
             document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-gray-500');
         });
+        
+        // NEW: Event listeners for sliders
+        document.getElementById('practiceTimeLimit').addEventListener('input', e => {
+            document.getElementById('practiceTimeValue').textContent = PracticeMode.TIME_MAP[e.target.value];
+        });
+        document.getElementById('practiceProblemLimit').addEventListener('input', e => {
+            document.getElementById('practiceProblemValue').textContent = PracticeMode.PROB_MAP[e.target.value];
+        });
 
         // Event listener for start
         document.getElementById('startPracticeGame').addEventListener('click', () => {
@@ -293,10 +324,19 @@ const PracticeMode = {
                 alert("Please select at least one operation.");
                 return;
             }
+            
+            // NEW: Read slider values and store them
+            const timeSliderVal = document.getElementById('practiceTimeLimit').value;
+            const probSliderVal = document.getElementById('practiceProblemLimit').value;
+            PracticeMode.timeLimit = PracticeMode.TIME_VAL_MAP[timeSliderVal];
+            PracticeMode.problemLimit = PracticeMode.PROB_VAL_MAP[probSliderVal];
+            
             PracticeMode.settings = {
                 ops: selectedOps,
                 maxAddend: PracticeMode.gradeConfig.maxAddend,
-                maxFactor: PracticeMode.gradeConfig.maxFactor
+                maxFactor: PracticeMode.gradeConfig.maxFactor,
+                timeLimit: PracticeMode.timeLimit,
+                problemLimit: PracticeMode.problemLimit
             };
             PracticeMode.renderGame();
         });
@@ -310,15 +350,18 @@ const PracticeMode = {
         PracticeMode.score = 0;
         PracticeMode.correct = 0;
         PracticeMode.attempted = 0;
-        PracticeMode.timer = 0;
         PracticeMode.isCoolingDown = false;
         if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
+        
+        // NEW: Set timer based on settings
+        const hasTimeLimit = PracticeMode.settings.timeLimit > 0;
+        PracticeMode.timer = hasTimeLimit ? PracticeMode.settings.timeLimit : 0;
 
         App.appTitle.textContent = 'Practice Mode';
         App.screenContainer.innerHTML = `
             <div class="flex justify-between items-center mb-4">
                 <div id="scoreDisplay" class="text-3xl font-bold text-indigo-600">Score: 0</div>
-                <div id="timerDisplay" class="text-3xl font-bold text-gray-700">0s</div>
+                <div id="timerDisplay" class="text-3xl font-bold text-gray-700">${PracticeMode.timer}s</div>
             </div>
             <div class="progress-bar-container mb-6">
                 <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
@@ -338,10 +381,30 @@ const PracticeMode = {
             PracticeMode.renderResults();
         });
 
-        // Start timer
+        // NEW: Updated timer logic
         PracticeMode.gameInterval = setInterval(() => {
-            PracticeMode.timer++;
-            document.getElementById('timerDisplay').textContent = `${PracticeMode.timer}s`;
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (!timerDisplay) {
+                clearInterval(PracticeMode.gameInterval);
+                return;
+            }
+            
+            if (hasTimeLimit) {
+                // Count down
+                PracticeMode.timer--;
+                timerDisplay.textContent = `${PracticeMode.timer}s`;
+                if (PracticeMode.timer <= 10 && PracticeMode.timer > 0) {
+                    timerDisplay.classList.add('text-red-700', 'animate-pulse');
+                } else if (PracticeMode.timer <= 0) {
+                    timerDisplay.textContent = `0s`;
+                    clearInterval(PracticeMode.gameInterval);
+                    PracticeMode.renderResults();
+                }
+            } else {
+                // Count up
+                PracticeMode.timer++;
+                timerDisplay.textContent = `${PracticeMode.timer}s`;
+            }
         }, 1000);
 
         PracticeMode.nextProblem();
@@ -396,11 +459,19 @@ const PracticeMode = {
     /** Checks the user's answer */
     checkAnswer: (userAnswer) => {
         if (PracticeMode.isCoolingDown || userAnswer === '') return;
+        
+        // NEW: Check for end-game condition (timer)
+        if (PracticeMode.settings.timeLimit > 0 && PracticeMode.timer <= 0) {
+            return; // Don't process answers after time is up
+        }
 
         PracticeMode.isCoolingDown = true;
         PracticeMode.attempted++;
         const isCorrect = parseInt(userAnswer) === PracticeMode.problem.answer;
         const input = document.getElementById('answerInput');
+        
+        // NEW: Check for problem limit
+        const problemLimitReached = PracticeMode.settings.problemLimit > 0 && PracticeMode.attempted >= PracticeMode.settings.problemLimit;
 
         if (isCorrect) {
             playCorrectSound();
@@ -422,7 +493,14 @@ const PracticeMode = {
             
             setTimeout(() => {
                 if (input) input.classList.remove('correct-flash');
-                PracticeMode.nextProblem();
+                
+                // NEW: Check end condition
+                if (problemLimitReached) {
+                    if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
+                    PracticeMode.renderResults();
+                } else {
+                    PracticeMode.nextProblem();
+                }
             }, 500); // Shorter cooldown on correct
 
         } else {
@@ -453,7 +531,14 @@ const PracticeMode = {
                     input.value = '';
                     input.focus();
                 }
-                PracticeMode.nextProblem();
+                
+                // NEW: Check end condition
+                if (problemLimitReached) {
+                    if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
+                    PracticeMode.renderResults();
+                } else {
+                    PracticeMode.nextProblem();
+                }
             }, COOLDOWN_TIME);
         }
         
@@ -611,10 +696,16 @@ const MasterMode = {
         
         // Start timer
         MasterMode.gameInterval = setInterval(() => {
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (!timerDisplay) {
+                clearInterval(MasterMode.gameInterval);
+                return;
+            }
+
             MasterMode.timer--;
-            document.getElementById('timerDisplay').textContent = `${MasterMode.timer}s`;
+            timerDisplay.textContent = `${MasterMode.timer}s`;
             if (MasterMode.timer <= 10) {
-                document.getElementById('timerDisplay').classList.add('text-red-700', 'animate-pulse');
+                timerDisplay.classList.add('text-red-700', 'animate-pulse');
             }
             if (MasterMode.timer <= 0) {
                 clearInterval(MasterMode.gameInterval);
