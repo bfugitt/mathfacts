@@ -49,7 +49,8 @@ const BTN_BLUE = "bg-blue-600 hover:bg-blue-700 text-white border-blue-800 activ
 const BTN_RED = "bg-red-600 hover:bg-red-700 text-white border-red-800 active:border-red-600";
 const BTN_GRAY = "bg-gray-500 hover:bg-gray-600 text-white py-2 text-base shadow-sm border-gray-700 active:border-gray-500 font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 border-2 border-b-4";
 const BTN_CHOICE = "font-bold py-4 px-6 rounded-lg text-3xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4"; // For 4-choice
-const BTN_DUEL = "font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4 text-xl p-2 leading-none"; // For duel
+// FIX: Made duel buttons much larger and set up for flex content
+const BTN_DUEL = "font-bold rounded-lg w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4 text-lg p-3 leading-none flex flex-col justify-center items-center min-h-24"; // For duel
 // --- End New ---
 
 
@@ -1005,7 +1006,8 @@ const DuelMode = {
             ${choices.map((choice, index) => `
                 <button class="choice-button ${BTN_DUEL} ${player.id === 1 ? BTN_RED : BTN_BLUE}" data-answer="${choice}">
                     <span class="font-bold text-sm opacity-75">${keys[index]}</span>
-                    <span class="block text-3xl font-extrabold">${choice}</span>
+                    <!-- FIX: Increased font size for the answer -->
+                    <span class="block text-4xl font-extrabold">${choice}</span>
                 </button>
             `).join('')}
         `;
