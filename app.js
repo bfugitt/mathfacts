@@ -778,6 +778,10 @@ const DuelMode = {
     renderSetupScreen: () => {
         appTitle.textContent = 'Duel Setup';
         const { maxAddend, maxFactor } = DuelMode.gradeConfig;
+        const newMaxAdd = 50;
+        const newMaxFact = 20;
+        const defaultAdd = Math.min(maxAddend, newMaxAdd);
+        const defaultFact = Math.min(maxFactor > 0 ? maxFactor : 12, newMaxFact);
 
         screenContainer.innerHTML = `
             <div class="space-y-6">
@@ -795,9 +799,16 @@ const DuelMode = {
 
                 <div class="space-y-2">
                     <label for="maxAdd" class="flex justify-between text-lg font-medium text-gray-700">
-                        Max Addend/Subtrahend: <span id="maxAddValue">${maxAddend}</span>
+                        Max Addend/Subtrahend: <span id="maxAddValue">${defaultAdd}</span>
                     </label>
-                    <input type="range" id="maxAdd" min="10" max="100" value="${maxAddend}" class="w-full">
+                    <input type="range" id="maxAdd" min="10" max="${newMaxAdd}" value="${defaultAdd}" class="w-full">
+                </div>
+                
+                <div class="space-y-2">
+                    <label for="maxFact" class="flex justify-between text-lg font-medium text-gray-700">
+                        Max Factor (Multiply/Divide): <span id="maxFactValue">${defaultFact}</span>
+                    </label>
+                    <input type="range" id="maxFact" min="5" max="${newMaxFact}" value="${defaultFact}" class="w-full">
                 </div>
                 
                 <div class="space-y-2">
@@ -908,13 +919,17 @@ const DuelMode = {
         player.problem = { n1, n2, op, answer };
         
         const choices = DuelMode.generateChoices(answer);
+        const keys = player.id === 1 ? ['A', 'S', 'D', 'F'] : ['J', 'K', 'L', ';'];
         
         document.getElementById(`p${player.id}-problem`).textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
         
         const choiceContainer = document.getElementById(`p${player.id}-choices`);
         choiceContainer.innerHTML = `
-            ${choices.map(choice => `
-                <button class="choice-button btn ${player.id === 1 ? 'btn-red' : 'btn-blue'} text-2xl">${choice}</button>
+            ${choices.map((choice, index) => `
+                <button class="choice-button btn ${player.id === 1 ? 'btn-red' : 'btn-blue'} text-xl p-2 leading-none" data-answer="${choice}">
+                    <span class="font-bold text-sm opacity-75">${keys[index]}</span>
+                    <span class="block text-3xl font-extrabold">${choice}</span>
+                </button>
             `).join('')}
         `;
         
@@ -999,7 +1014,7 @@ const DuelMode = {
         if (player.isCoolingDown) return;
 
         const choiceButtons = document.querySelectorAll(`#${player.containerId} .choice-button`);
-        const chosenAnswer = parseInt(choiceButtons[choiceIndex].textContent);
+        const chosenAnswer = parseInt(choiceButtons[choiceIndex].dataset.answer);
         const isCorrect = chosenAnswer === player.problem.answer;
         const playerContainer = document.getElementById(player.containerId);
 
