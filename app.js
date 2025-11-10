@@ -66,6 +66,17 @@ function playDuelWinSound() {
 }
 
 /**
+ * Formats an operator symbol for display.
+ * @param {string} op The operator (+, -, *, /)
+ * @returns {string} The display-friendly symbol (x, ÷)
+ */
+function formatOp(op) {
+    if (op === '*') return 'x';
+    if (op === '/') return '÷';
+    return op;
+}
+
+/**
  * Generates a random integer between min (inclusive) and max (inclusive).
  */
 function getRandomInt(min, max) {
@@ -187,7 +198,7 @@ const PracticeMode = {
     gameTimer: 60,
     gameInterval: null,
     isCoolingDown: false,
-    COOLDOWN_TIME: 1000, // 1 second penalty
+    COOLDOWN_TIME: 2500, // 2.5 second penalty
 
     /** Starts the practice mode (shows setup screen) */
     start: (gradeConfig) => {
@@ -273,6 +284,9 @@ const PracticeMode = {
                     <!-- Problem will be injected here -->
                 </div>
                 
+                <!-- Helper text for showing correct answer on text input -->
+                <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
+                
                 <div id="answerContainer">
                     <!-- Answer input or buttons will be injected here -->
                 </div>
@@ -320,10 +334,12 @@ const PracticeMode = {
 
         const problemDisplay = document.getElementById('problemDisplay');
         const answerContainer = document.getElementById('answerContainer');
+        const helperText = document.getElementById('helperTextDisplay');
         
-        if (!problemDisplay || !answerContainer) return; // Screen not visible
+        if (!problemDisplay || !answerContainer || !helperText) return; // Screen not visible
 
-        problemDisplay.textContent = `${n1} ${op} ${n2} = ?`;
+        problemDisplay.textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
+        helperText.textContent = ''; // Clear helper text
 
         if (PracticeMode.isMultipleChoice) {
             const choices = PracticeMode.generateChoices(answer);
@@ -419,7 +435,12 @@ const PracticeMode = {
                     PracticeMode.nextProblem();
                 }, 200);
             } else if (PracticeMode.isMultipleChoice) {
-                document.querySelectorAll('.choice-button').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('.choice-button').forEach(btn => {
+                    btn.disabled = true;
+                    if (parseInt(btn.textContent) === PracticeMode.currentProblem.answer) {
+                        btn.classList.add('correct-flash'); // Show correct
+                    }
+                });
                 setTimeout(PracticeMode.nextProblem, 200);
             }
         } else {
@@ -427,10 +448,21 @@ const PracticeMode = {
             PracticeMode.isCoolingDown = true; // Start penalty
             
             if (PracticeMode.isMultipleChoice) {
-                document.querySelectorAll('.choice-button').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('.choice-button').forEach(btn => {
+                    btn.disabled = true;
+                    const btnValue = parseInt(btn.textContent);
+                    if (btnValue === PracticeMode.currentProblem.answer) {
+                        btn.classList.add('correct-flash'); // Show correct
+                    }
+                    if (btnValue === parseInt(userAnswer)) {
+                        btn.classList.add('incorrect-flash'); // Show wrong
+                    }
+                });
             } else if (input) {
                 input.disabled = true;
                 input.classList.add('incorrect-flash');
+                // Show the correct answer
+                document.getElementById('helperTextDisplay').textContent = `Answer: ${PracticeMode.currentProblem.answer}`;
             }
 
             // Set the cooldown timer
@@ -488,7 +520,7 @@ const MasterMode = {
     currentProblem: null,
     gameInterval: null,
     isCoolingDown: false,
-    COOLDOWN_TIME: 1000,
+    COOLDOWN_TIME: 2500, // 2.5 second penalty
     isMultipleChoice: true, // Master mode is always multiple choice
 
     /** Starts the Master Mode */
@@ -527,6 +559,9 @@ const MasterMode = {
                     <!-- Problem will be injected here -->
                 </div>
                 
+                <!-- Helper text for showing correct answer (though not used in MC) -->
+                <div id="helperTextDisplay" class="text-2xl font-bold text-green-600 h-8"></div>
+                
                 <div id="answerContainer" class="grid grid-cols-2 gap-4 mt-4">
                     <!-- Answer buttons will be injected here -->
                 </div>
@@ -563,9 +598,11 @@ const MasterMode = {
         
         const problemDisplay = document.getElementById('problemDisplay');
         const answerContainer = document.getElementById('answerContainer');
-        if (!problemDisplay || !answerContainer) return; // Game ended
+        const helperText = document.getElementById('helperTextDisplay');
+        if (!problemDisplay || !answerContainer || !helperText) return; // Game ended
 
-        problemDisplay.textContent = `${n1} ${op} ${n2} = ?`;
+        problemDisplay.textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
+        helperText.textContent = ''; // Clear helper text
         
         const choices = MasterMode.generateChoices(answer);
         answerContainer.innerHTML = `
@@ -632,16 +669,30 @@ const MasterMode = {
         const isCorrect = parseInt(userAnswer) === MasterMode.currentProblem.answer;
         MasterMode.problemHistory.push({ ...MasterMode.currentProblem, userAnswer, isCorrect });
         
-        document.querySelectorAll('.choice-button').forEach(btn => btn.disabled = true);
+        MasterMode.isCoolingDown = true; // Block input immediately
+        const buttons = document.querySelectorAll('.choice-button');
+
+        buttons.forEach(btn => {
+            btn.disabled = true;
+            const btnValue = parseInt(btn.textContent);
+            if (btnValue === MasterMode.currentProblem.answer) {
+                btn.classList.add('correct-flash'); // Always show correct answer
+            }
+            if (!isCorrect && btnValue === parseInt(userAnswer)) {
+                btn.classList.add('incorrect-flash'); // Show user's wrong answer
+            }
+        });
 
         if (isCorrect) {
             playCorrectSound();
             MasterMode.score++;
             MasterMode.updateScoreDisplay();
-            setTimeout(MasterMode.nextProblem, 100); // Quick transition
+            setTimeout(() => {
+                MasterMode.isCoolingDown = false;
+                MasterMode.nextProblem();
+            }, 200); // Quick transition
         } else {
             playIncorrectSound();
-            MasterMode.isCoolingDown = true;
             // No score penalty, just time penalty
             setTimeout(() => {
                 MasterMode.isCoolingDown = false;
@@ -858,7 +909,7 @@ const DuelMode = {
         
         const choices = DuelMode.generateChoices(answer);
         
-        document.getElementById(`p${player.id}-problem`).textContent = `${n1} ${op} ${n2} = ?`;
+        document.getElementById(`p${player.id}-problem`).textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
         
         const choiceContainer = document.getElementById(`p${player.id}-choices`);
         choiceContainer.innerHTML = `
@@ -972,7 +1023,7 @@ const DuelMode = {
                 playerContainer.classList.remove('duel-incorrect-flash');
                 player.isCoolingDown = false;
                 DuelMode.nextProblemForPlayer(player);
-            }, 1000); // 1 second penalty
+            }, 2500); // 2.5 second penalty
         }
     },
 
