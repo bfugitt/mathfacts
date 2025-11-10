@@ -887,6 +887,7 @@ const DuelMode = {
         `;
 
         // Event listeners for sliders
+        /* --- REMOVED ---
         document.getElementById('maxAdd').addEventListener('input', e => {
             document.getElementById('maxAddValue').textContent = e.target.value;
         });
@@ -896,6 +897,7 @@ const DuelMode = {
         document.getElementById('timerSet').addEventListener('input', e => {
             document.getElementById('timerValue').textContent = e.target.value;
         });
+        */
         
         // Event listener for start
         document.getElementById('startDuelGame').addEventListener('click', () => {
