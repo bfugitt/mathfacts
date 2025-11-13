@@ -14,18 +14,20 @@ const App = {
 
 // Grade-level configurations
 const GRADE_CONFIG = {
-    1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 10 },
-    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 12, maxFactor: 0, targetScore: 20 },
-    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 15, maxFactor: 10, targetScore: 30 },
-    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 20, maxFactor: 12, targetScore: 40 },
-    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
-    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 30, maxFactor: 20, targetScore: 60 },
-    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 40, maxFactor: 20, targetScore: 70 },
-    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 20, targetScore: 80 },
+    1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 20 },
+    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 20, maxFactor: 0, targetScore: 30 },
+    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 20, maxFactor: 10, targetScore: 40 },
+    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
+    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 12, targetScore: 60 },
+    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 60 },
+    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 70 },
+    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 80 },
 };
 
 // Cooldown time on wrong answer (in milliseconds)
-const COOLDOWN_TIME = 2000;
+const COOLDOWN_TIME = 2500;
+// NEW: Spaced Repetition "box" limit
+const MAX_FACT_STRENGTH = 5; // Facts with strength 5 are "mastered"
 
 // --- SHARED UI CONSTANTS (Tailwind Classes) ---
 const BTN_BASE = "font-extrabold py-5 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
@@ -69,6 +71,44 @@ function formatOp(op) {
     if (op === '÷') return '÷';
     return op;
 }
+
+// --- NEW: ADAPTIVE LEARNING (localStorage) UTILITIES ---
+
+/**
+ * Creates a unique, canonical key for a math fact.
+ * e.g., (3, 5, '+') and (5, 3, '+') both become "3+5"
+ * e.g., (5, 3, '-') becomes "5-3"
+ */
+function getFactKey(n1, n2, op) {
+    if (op === '+' || op === 'x') {
+        // For commutative ops, sort numbers to get a consistent key
+        return (n1 < n2) ? `${n1}${op}${n2}` : `${n2}${op}${n1}`;
+    }
+    // For non-commutative ops, order matters
+    return `${n1}${op}${n2}`;
+}
+
+/** Loads the student's fact mastery data from localStorage */
+function loadMasteryData() {
+    try {
+        const data = localStorage.getItem('mathFactMastery');
+        return data ? JSON.parse(data) : {};
+    } catch (e) {
+        console.error("Error loading mastery data:", e);
+        return {}; // Return empty object on error
+    }
+}
+
+/** Saves the student's fact mastery data to localStorage */
+function saveMasteryData(data) {
+    try {
+        localStorage.setItem('mathFactMastery', JSON.stringify(data));
+    } catch (e) {
+        console.error("Error saving mastery data:", e);
+    }
+}
+// --- END NEW ADAPTIVE UTILITIES ---
+
 
 /** Generates a new math problem based on settings */
 function generateProblem(settings) {
@@ -234,8 +274,13 @@ const PracticeMode = {
     timeLimit: 0, 
     problemLimit: 0,
     
-    // NEW: Stats object for targeted feedback
+    // Stats object for targeted feedback
     stats: {}, // e.g., { '+': { correct: 0, attempted: 0 }, ... }
+
+    // NEW: Adaptive Learning state
+    isAdaptive: true, // Default to on
+    masteryData: {}, // Holds the Leitner "boxes"
+    newFactChance: 0.4, // 40% chance of getting a new fact vs. a review fact
 
     // Helper functions to get totals from the new stats object
     getTotalAttempted: () => {
@@ -285,6 +330,17 @@ const PracticeMode = {
                     <span class="text-lg font-medium ${!PracticeMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Keyed Entry</span>
                 </div>
 
+                <!-- NEW: Adaptive Learning Toggle -->
+                <div class="flex items-center justify-center space-x-4">
+                    <span class="text-lg font-medium text-gray-500">Random Practice</span>
+                    <div class="relative inline-block w-16 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="toggleAdaptive" class="toggle-checkbox absolute block w-8 h-8 rounded-full bg-white border-4 appearance-none cursor-pointer" ${PracticeMode.isAdaptive ? 'checked' : ''} />
+                        <label for="toggleAdaptive" class="toggle-label block overflow-hidden h-8 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                    <span class="text-lg font-medium text-indigo-600 font-bold">Adaptive Learning</span>
+                </div>
+                <!-- END NEW -->
+
                 <!-- Sliders for Time and Problem Limits -->
                 <div class="space-y-4">
                     <div>
@@ -311,7 +367,19 @@ const PracticeMode = {
             document.querySelector('span[class*="Multiple Choice"]').classList.toggle('text-gray-500');
             document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-indigo-600');
             document.querySelector('span[class*="Keyed Entry"]').classList.toggle('font-bold');
-            document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-gray-500');
+            document.querySelector('span[class**="Keyed Entry"]').classList.toggle('text-gray-500');
+        });
+        
+        // NEW: Event listener for Adaptive toggle
+        document.getElementById('toggleAdaptive').addEventListener('change', (e) => {
+            PracticeMode.isAdaptive = e.target.checked;
+            // Update labels
+            document.querySelector('span[class*="Random Practice"]').classList.toggle('text-indigo-600');
+            document.querySelector('span[class*="Random Practice"]').classList.toggle('font-bold');
+            document.querySelector('span[class*="Random Practice"]').classList.toggle('text-gray-500');
+            document.querySelector('span[class*="Adaptive Learning"]').classList.toggle('text-indigo-600');
+            document.querySelector('span[class*="Adaptive Learning"]').classList.toggle('font-bold');
+            document.querySelector('span[class*="Adaptive Learning"]').classList.toggle('text-gray-500');
         });
         
         // Event listeners for sliders
@@ -341,7 +409,8 @@ const PracticeMode = {
                 maxAddend: PracticeMode.gradeConfig.maxAddend,
                 maxFactor: PracticeMode.gradeConfig.maxFactor,
                 timeLimit: PracticeMode.timeLimit,
-                problemLimit: PracticeMode.problemLimit
+                problemLimit: PracticeMode.problemLimit,
+                isAdaptive: PracticeMode.isAdaptive // NEW: Store adaptive setting
             };
             PracticeMode.renderGame();
         });
@@ -356,11 +425,18 @@ const PracticeMode = {
         PracticeMode.isCoolingDown = false;
         if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
         
-        // NEW: Initialize stats object based on selected ops
+        // Initialize stats object based on selected ops
         PracticeMode.stats = {};
         PracticeMode.settings.ops.forEach(op => {
             PracticeMode.stats[op] = { correct: 0, attempted: 0 };
         });
+        
+        // NEW: Load mastery data if adaptive
+        if (PracticeMode.settings.isAdaptive) {
+            PracticeMode.masteryData = loadMasteryData();
+        } else {
+            PracticeMode.masteryData = {}; // Clear data if not adaptive
+        }
         
         // Set timer based on settings
         const hasTimeLimit = PracticeMode.settings.timeLimit > 0;
@@ -419,12 +495,55 @@ const PracticeMode = {
         PracticeMode.nextProblem();
     },
 
-    /** Generates and displays the next problem */
+    /** * Generates and displays the next problem.
+     * NEW: This is now the Adaptive Learning Engine.
+     */
     nextProblem: () => {
         PracticeMode.isCoolingDown = false;
-        PracticeMode.problem = generateProblem(PracticeMode.settings);
-        const { n1, n2, op, answer } = PracticeMode.problem;
+        
+        if (PracticeMode.settings.isAdaptive) {
+            // --- ADAPTIVE LOGIC ---
+            // 1. Find all "due" facts (strength < 5) that match settings
+            const allFacts = Object.entries(PracticeMode.masteryData);
+            const dueFacts = allFacts.filter(([key, fact]) => {
+                const { n1, n2, op } = fact;
+                const inOps = PracticeMode.settings.ops.includes(op);
+                const inRange = (op === '+' || op === '-') ? 
+                    (n1 <= PracticeMode.settings.maxAddend && n2 <= PracticeMode.settings.maxAddend) :
+                    (n1 <= PracticeMode.settings.maxFactor && n2 <= PracticeMode.settings.maxFactor);
+                
+                return inOps && inRange && fact.strength < MAX_FACT_STRENGTH;
+            });
 
+            // 2. Find the *weakest* facts (strength = 1) from the due pool
+            const weakestFacts = dueFacts.filter(([key, fact]) => fact.strength === 1);
+            
+            let problemToAsk = null;
+
+            // 3. Decide: Review a weak fact, or show a new one?
+            if (weakestFacts.length > 0 && Math.random() > PracticeMode.newFactChance) {
+                // A. Prioritize "Struggling" facts (Box 1)
+                const [key, fact] = weakestFacts[Math.floor(Math.random() * weakestFacts.length)];
+                problemToAsk = fact;
+            } else if (dueFacts.length > 0 && Math.random() > PracticeMode.newFactChance) {
+                // B. Review any other "due" fact (Boxes 2-4)
+                const [key, fact] = dueFacts[Math.floor(Math.random() * dueFacts.length)];
+                problemToAsk = fact;
+            } else {
+                // C. Generate a new, random problem
+                problemToAsk = generateProblem(PracticeMode.settings);
+                // (We will add this to masteryData in checkAnswer)
+            }
+            PracticeMode.problem = problemToAsk;
+
+        } else {
+            // --- ORIGINAL RANDOM LOGIC ---
+            PracticeMode.problem = generateProblem(PracticeMode.settings);
+        }
+
+        // --- (Unchanged) Display the chosen problem ---
+        const { n1, n2, op, answer } = PracticeMode.problem;
+        
         document.getElementById('problemDisplay').textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
         document.getElementById('helperTextDisplay').textContent = ''; // Clear helper text
         const answerContainer = document.getElementById('answerContainer');
@@ -465,7 +584,9 @@ const PracticeMode = {
         }
     },
 
-    /** Checks the user's answer */
+    /** * Checks the user's answer.
+     * NEW: Updates stats and adaptive mastery data.
+     */
     checkAnswer: (userAnswer) => {
         if (PracticeMode.isCoolingDown || userAnswer === '') return;
         
@@ -476,7 +597,7 @@ const PracticeMode = {
 
         PracticeMode.isCoolingDown = true;
         
-        // NEW: Get totals and operation for stats
+        // Get totals and operation for stats
         const op = PracticeMode.problem.op;
         PracticeMode.stats[op].attempted++;
         const totalAttempted = PracticeMode.getTotalAttempted();
@@ -487,9 +608,35 @@ const PracticeMode = {
         // Check for problem limit
         const problemLimitReached = PracticeMode.settings.problemLimit > 0 && totalAttempted >= PracticeMode.settings.problemLimit;
 
+        // --- NEW: ADAPTIVE LEARNING UPDATE ---
+        if (PracticeMode.settings.isAdaptive) {
+            const { n1, n2, op, answer } = PracticeMode.problem;
+            const factKey = getFactKey(n1, n2, op);
+            
+            // Get the fact from our db, or create it if it's new
+            const fact = PracticeMode.masteryData[factKey] || {
+                n1, n2, op, answer, strength: 0
+            };
+
+            if (isCorrect) {
+                // Move fact "up" a box (increase strength)
+                fact.strength = Math.min(MAX_FACT_STRENGTH, fact.strength + 1);
+            } else {
+                // Move fact "down" to Box 1 (reset strength)
+                fact.strength = 1;
+            }
+            
+            // Save the updated fact
+            PracticeMode.masteryData[factKey] = fact;
+            // Save the entire database to localStorage
+            saveMasteryData(PracticeMode.masteryData);
+        }
+        // --- END ADAPTIVE UPDATE ---
+
+
         if (isCorrect) {
             playCorrectSound();
-            PracticeMode.stats[op].correct++; // NEW: Log correct by op
+            PracticeMode.stats[op].correct++; // Log correct by op
             PracticeMode.score += 10;
             
             if (PracticeMode.isMultipleChoice) {
@@ -558,7 +705,7 @@ const PracticeMode = {
         
         // Update score and progress bar
         document.getElementById('scoreDisplay').textContent = `Score: ${PracticeMode.score}`;
-        // NEW: Update accuracy based on new stats
+        // Update accuracy based on new stats
         const accuracy = (totalAttempted > 0) ? (PracticeMode.getTotalCorrect() / totalAttempted) * 100 : 0;
         document.getElementById('progressBar').style.width = `${accuracy}%`;
     },
@@ -567,12 +714,12 @@ const PracticeMode = {
     renderResults: () => {
         App.appTitle.textContent = 'Practice Results';
         
-        // NEW: Get totals and calculate overall accuracy
+        // Get totals and calculate overall accuracy
         const totalAttempted = PracticeMode.getTotalAttempted();
         const totalCorrect = PracticeMode.getTotalCorrect();
         const accuracy = (totalAttempted > 0) ? (totalCorrect / totalAttempted * 100).toFixed(0) : 0;
         
-        // NEW: Build the detailed stats breakdown HTML
+        // Build the detailed stats breakdown HTML
         let statsHTML = '';
         if (Object.keys(PracticeMode.stats).length > 1) { // Only show breakdown if more than one op was practiced
             statsHTML = '<div class="col-span-2 text-left space-y-2 mt-4">';
@@ -596,7 +743,6 @@ const PracticeMode = {
             }
             statsHTML += '</div>';
         }
-        // END NEW
 
         App.screenContainer.innerHTML = `
             <div class="text-center space-y-6">
@@ -611,9 +757,8 @@ const PracticeMode = {
                         <div class="text-lg text-gray-600">Overall Accuracy</div>
                     </div>
                     
-                    <!-- NEW: Detailed Stats Breakdown Rendered Here -->
+                    <!-- Detailed Stats Breakdown Rendered Here -->
                     ${statsHTML}
-                    <!-- END NEW -->
                     
                 </div>
                 <button id="practiceAgain" class="${BTN_BASE} ${BTN_GREEN}">Practice Again</button>
@@ -644,7 +789,7 @@ const MasterMode = {
         App.currentMode = 'master';
         MasterMode.gradeConfig = gradeConfig;
         MasterMode.targetScore = gradeConfig.targetScore;
-        MasterMode.renderSetupScreen(); // NEW: Go to setup screen first
+        MasterMode.renderSetupScreen();
     },
     
     /** Renders setup screen for Master Test Mode */
@@ -951,7 +1096,7 @@ const DuelMode = {
                     </div>
                 </div>
 
-                <!-- NEW: Re-added sliders -->
+                <!-- Re-added sliders -->
                 <div class="space-y-4">
                     <div>
                         <label for="duelMaxAdd" class="block text-sm font-medium text-gray-700">Max Number (+, -): <span id="duelMaxAddValue" class="font-bold">${defaultAdd}</span></label>
@@ -962,21 +1107,19 @@ const DuelMode = {
                         <input type="range" id="duelMaxFact" min="2" max="${newMaxFact}" value="${defaultFact}" class="mt-1">
                     </div>
                 </div>
-                <!-- END NEW -->
 
                 <button id="startDuelGame" class="${BTN_BASE} ${BTN_RED}">Start Duel!</button>
                 ${getBackButton()}
             </div>
         `;
 
-        // --- NEW: Event listeners for sliders ---
+        // Event listeners for sliders
         document.getElementById('duelMaxAdd').addEventListener('input', e => {
             document.getElementById('duelMaxAddValue').textContent = e.target.value;
         });
         document.getElementById('duelMaxFact').addEventListener('input', e => {
             document.getElementById('duelMaxFactValue').textContent = e.target.value;
         });
-        // --- END NEW ---
         
         // Event listener for start
         document.getElementById('startDuelGame').addEventListener('click', () => {
@@ -986,14 +1129,13 @@ const DuelMode = {
                 return;
             }
             
-            // --- FIX: Read from new sliders ---
+            // Read from new sliders
             DuelMode.settings = {
                 ops: selectedOps,
                 maxAddend: parseInt(document.getElementById('duelMaxAdd').value),
                 maxFactor: parseInt(document.getElementById('duelMaxFact').value),
                 timer: 60 // Default to 60 seconds
             };
-            // --- END FIX ---
             
             DuelMode.renderGame();
         });
@@ -1087,7 +1229,6 @@ const DuelMode = {
             ${player.choices.map((choice, index) => `
                 <button class="choice-button ${BTN_DUEL} ${player.id === 1 ? BTN_RED : BTN_BLUE}" data-answer="${choice}">
                     <span class="font-bold text-sm opacity-75">${keys[index]}</span>
-                    <!-- FIX: Increased font size for the answer -->
                     <span class="block text-4xl font-extrabold">${choice}</span>
                 </button>
             `).join('')}
