@@ -266,6 +266,9 @@ function renderGradeSelect() {
 /** Renders the screen to select a game mode. */
 function renderModeSelect(grade) {
     App.appTitle.textContent = `Grade ${grade} - Select Mode`;
+    // NEW: Clear mastery lights when leaving practice mode
+    document.getElementById('masteryLightsContainer').innerHTML = '';
+    
     App.screenContainer.innerHTML = `
         <button id="startPractice" class="${BTN_BASE} ${BTN_GREEN}">
             🎯 Practice
@@ -314,6 +317,44 @@ const PracticeMode = {
         return Object.values(PracticeMode.stats).reduce((sum, opStats) => sum + opStats.correct, 0);
     },
     
+    // NEW: Function to render the mastery lights
+    renderMasteryLights: () => {
+        const container = document.getElementById('masteryLightsContainer');
+        if (!container || !PracticeMode.settings.isAdaptive) {
+            if(container) container.innerHTML = ''; // Clear if not adaptive
+            return;
+        }
+
+        // 1. Find all facts relevant to the *selected operations*
+        const relevantFacts = Object.values(PracticeMode.studentProfile.factMastery).filter(fact => {
+            return PracticeMode.settings.ops.includes(fact.op);
+        });
+
+        if (relevantFacts.length === 0) {
+            container.innerHTML = Array(5).fill('<div class="mastery-light"></div>').join('');
+            return;
+        }
+
+        // 2. Calculate mastery
+        const masteredFacts = relevantFacts.filter(fact => fact.strength >= 3); // "Reviewing" or higher
+        const percentMastered = masteredFacts.length / relevantFacts.length;
+        
+        // 3. Determine how many lights to fill (0-5)
+        let lightsToFill = 0;
+        if (percentMastered >= 0.95) lightsToFill = 5;       // 95-100%
+        else if (percentMastered >= 0.75) lightsToFill = 4;  // 75-94%
+        else if (percentMastered >= 0.50) lightsToFill = 3;  // 50-74%
+        else if (percentMastered >= 0.25) lightsToFill = 2;  // 25-49%
+        else if (percentMastered > 0) lightsToFill = 1;      // 1-24%
+
+        // 4. Render lights
+        let lightsHTML = '';
+        for (let i = 0; i < 5; i++) {
+            lightsHTML += `<div class="mastery-light ${i < lightsToFill ? 'mastered' : ''}"></div>`;
+        }
+        container.innerHTML = lightsHTML;
+    },
+
     TIME_MAP: { '0': 'No Limit', '1': '30s', '2': '60s', '3': '120s' },
     TIME_VAL_MAP: { '0': 0, '1': 30, '2': 60, '3': 120 },
     PROB_MAP: { '0': 'No Limit', '1': '10', '2': '20', '3': '40', '4': '50' },
@@ -545,6 +586,7 @@ const PracticeMode = {
         }, 1000);
 
         PracticeMode.nextProblem();
+        PracticeMode.renderMasteryLights(); // NEW: Render lights on game start
     },
 
     /** Generates and displays the next problem (ADAPTIVE ENGINE) */
@@ -703,6 +745,7 @@ const PracticeMode = {
             
             // Save the *entire* profile
             saveStudentProfile(PracticeMode.studentProfile);
+            PracticeMode.renderMasteryLights(); // NEW: Update lights after check
         }
         // --- END ADAPTIVE UPDATE ---
 
@@ -829,6 +872,8 @@ const PracticeMode = {
     /** Renders the results screen for Practice Mode */
     renderResults: () => {
         App.appTitle.textContent = 'Practice Results';
+        // NEW: Clear mastery lights on results screen
+        document.getElementById('masteryLightsContainer').innerHTML = '';
         
         const totalAttempted = PracticeMode.getTotalAttempted();
         const totalCorrect = PracticeMode.getTotalCorrect();
@@ -903,6 +948,8 @@ const MasterMode = {
 
     start: (gradeConfig) => {
         App.currentMode = 'master';
+        // NEW: Clear mastery lights when leaving practice mode
+        document.getElementById('masteryLightsContainer').innerHTML = '';
         MasterMode.gradeConfig = gradeConfig;
         MasterMode.targetScore = gradeConfig.targetScore;
         MasterMode.renderSetupScreen();
@@ -1174,6 +1221,8 @@ const DuelMode = {
 
     start: (gradeConfig) => {
         App.currentMode = 'duel';
+        // NEW: Clear mastery lights when leaving practice mode
+        document.getElementById('masteryLightsContainer').innerHTML = '';
         DuelMode.gradeConfig = gradeConfig;
         DuelMode.renderSetupScreen();
     },
