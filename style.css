@@ -168,6 +168,23 @@ input[type=range]::-moz-range-track {
     background-size: 40px 40px;
 }
 
+/* --- NEW: Mastery Level Lights --- */
+.mastery-light {
+    width: 1rem;  /* 16px */
+    height: 1rem; /* 16px */
+    border-radius: 9999px; /* full circle */
+    background-color: #e5e7eb; /* gray-200 */
+    border: 2px solid #d1d5db; /* gray-300 */
+    transition: all 0.3s ease;
+}
+
+.mastery-light.mastered {
+    background-color: #4f46e5; /* indigo-600 */
+    border-color: #3730a3; /* indigo-800 */
+    box-shadow: 0 0 8px rgba(79, 70, 229, 0.5);
+}
+/* --- END NEW --- */
+
 /* --- Generic Button Style --- */
 /* * All button styles have been moved to app.js as Tailwind classes
  * to work with the CDN.
