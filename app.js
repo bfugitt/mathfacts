@@ -15,13 +15,13 @@ const App = {
 // Grade-level configurations
 const GRADE_CONFIG = {
     1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 20 },
-    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 15, maxFactor: 0, targetScore: 25 },
-    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 18, maxFactor: 10, targetScore: 30 },
-    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 20, maxFactor: 12, targetScore: 40 },
-    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
-    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 30, maxFactor: 15, targetScore: 60 },
-    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 40, maxFactor: 18, targetScore: 65 },
-    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 20, targetScore: 70 },
+    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 20, maxFactor: 0, targetScore: 30 },
+    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 20, maxFactor: 10, targetScore: 40 },
+    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
+    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 12, targetScore: 60 },
+    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 60 },
+    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 70 },
+    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 80 },
 };
 
 // Cooldown time on wrong answer (in milliseconds)
@@ -226,23 +226,29 @@ const PracticeMode = {
     gradeConfig: {},
     settings: {},
     score: 0,
-    attempted: 0,
-    correct: 0,
     problem: {},
     isMultipleChoice: true,
     isCoolingDown: false,
     gameInterval: null,
     timer: 0,
-    // NEW: Add default limits
     timeLimit: 0, 
     problemLimit: 0,
     
-    // NEW: Mappings for sliders
+    // NEW: Stats object for targeted feedback
+    stats: {}, // e.g., { '+': { correct: 0, attempted: 0 }, ... }
+
+    // Helper functions to get totals from the new stats object
+    getTotalAttempted: () => {
+        return Object.values(PracticeMode.stats).reduce((sum, opStats) => sum + opStats.attempted, 0);
+    },
+    getTotalCorrect: () => {
+        return Object.values(PracticeMode.stats).reduce((sum, opStats) => sum + opStats.correct, 0);
+    },
+    
     TIME_MAP: { '0': 'No Limit', '1': '30s', '2': '60s', '3': '120s' },
     TIME_VAL_MAP: { '0': 0, '1': 30, '2': 60, '3': 120 },
     PROB_MAP: { '0': 'No Limit', '1': '10', '2': '20', '3': '40', '4': '50' },
     PROB_VAL_MAP: { '0': 0, '1': 10, '2': 20, '3': 40, '4': 50 },
-
 
     start: (gradeConfig) => {
         App.currentMode = 'practice';
@@ -279,7 +285,7 @@ const PracticeMode = {
                     <span class="text-lg font-medium ${!PracticeMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Keyed Entry</span>
                 </div>
 
-                <!-- NEW: Sliders for Time and Problem Limits -->
+                <!-- Sliders for Time and Problem Limits -->
                 <div class="space-y-4">
                     <div>
                         <label for="practiceTimeLimit" class="block text-sm font-medium text-gray-700">Time Limit: <span id="practiceTimeValue" class="font-bold">No Limit</span></label>
@@ -290,7 +296,6 @@ const PracticeMode = {
                         <input type="range" id="practiceProblemLimit" min="0" max="4" value="0" step="1" class="mt-1">
                     </div>
                 </div>
-                <!-- END NEW -->
 
                 <button id="startPracticeGame" class="${BTN_BASE} ${BTN_GREEN}">Start Practice!</button>
                 ${getBackButton()}
@@ -309,7 +314,7 @@ const PracticeMode = {
             document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-gray-500');
         });
         
-        // NEW: Event listeners for sliders
+        // Event listeners for sliders
         document.getElementById('practiceTimeLimit').addEventListener('input', e => {
             document.getElementById('practiceTimeValue').textContent = PracticeMode.TIME_MAP[e.target.value];
         });
@@ -325,7 +330,7 @@ const PracticeMode = {
                 return;
             }
             
-            // NEW: Read slider values and store them
+            // Read slider values and store them
             const timeSliderVal = document.getElementById('practiceTimeLimit').value;
             const probSliderVal = document.getElementById('practiceProblemLimit').value;
             PracticeMode.timeLimit = PracticeMode.TIME_VAL_MAP[timeSliderVal];
@@ -348,12 +353,16 @@ const PracticeMode = {
     renderGame: () => {
         // Reset scores and state
         PracticeMode.score = 0;
-        PracticeMode.correct = 0;
-        PracticeMode.attempted = 0;
         PracticeMode.isCoolingDown = false;
         if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
         
-        // NEW: Set timer based on settings
+        // NEW: Initialize stats object based on selected ops
+        PracticeMode.stats = {};
+        PracticeMode.settings.ops.forEach(op => {
+            PracticeMode.stats[op] = { correct: 0, attempted: 0 };
+        });
+        
+        // Set timer based on settings
         const hasTimeLimit = PracticeMode.settings.timeLimit > 0;
         PracticeMode.timer = hasTimeLimit ? PracticeMode.settings.timeLimit : 0;
 
@@ -381,7 +390,7 @@ const PracticeMode = {
             PracticeMode.renderResults();
         });
 
-        // NEW: Updated timer logic
+        // Updated timer logic
         PracticeMode.gameInterval = setInterval(() => {
             const timerDisplay = document.getElementById('timerDisplay');
             if (!timerDisplay) {
@@ -460,22 +469,27 @@ const PracticeMode = {
     checkAnswer: (userAnswer) => {
         if (PracticeMode.isCoolingDown || userAnswer === '') return;
         
-        // NEW: Check for end-game condition (timer)
+        // Check for end-game condition (timer)
         if (PracticeMode.settings.timeLimit > 0 && PracticeMode.timer <= 0) {
             return; // Don't process answers after time is up
         }
 
         PracticeMode.isCoolingDown = true;
-        PracticeMode.attempted++;
+        
+        // NEW: Get totals and operation for stats
+        const op = PracticeMode.problem.op;
+        PracticeMode.stats[op].attempted++;
+        const totalAttempted = PracticeMode.getTotalAttempted();
+        
         const isCorrect = parseInt(userAnswer) === PracticeMode.problem.answer;
         const input = document.getElementById('answerInput');
         
-        // NEW: Check for problem limit
-        const problemLimitReached = PracticeMode.settings.problemLimit > 0 && PracticeMode.attempted >= PracticeMode.settings.problemLimit;
+        // Check for problem limit
+        const problemLimitReached = PracticeMode.settings.problemLimit > 0 && totalAttempted >= PracticeMode.settings.problemLimit;
 
         if (isCorrect) {
             playCorrectSound();
-            PracticeMode.correct++;
+            PracticeMode.stats[op].correct++; // NEW: Log correct by op
             PracticeMode.score += 10;
             
             if (PracticeMode.isMultipleChoice) {
@@ -494,7 +508,7 @@ const PracticeMode = {
             setTimeout(() => {
                 if (input) input.classList.remove('correct-flash');
                 
-                // NEW: Check end condition
+                // Check end condition
                 if (problemLimitReached) {
                     if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
                     PracticeMode.renderResults();
@@ -532,7 +546,7 @@ const PracticeMode = {
                     input.focus();
                 }
                 
-                // NEW: Check end condition
+                // Check end condition
                 if (problemLimitReached) {
                     if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
                     PracticeMode.renderResults();
@@ -544,15 +558,46 @@ const PracticeMode = {
         
         // Update score and progress bar
         document.getElementById('scoreDisplay').textContent = `Score: ${PracticeMode.score}`;
-        const accuracy = (PracticeMode.attempted > 0) ? (PracticeMode.correct / PracticeMode.attempted) * 100 : 0;
+        // NEW: Update accuracy based on new stats
+        const accuracy = (totalAttempted > 0) ? (PracticeMode.getTotalCorrect() / totalAttempted) * 100 : 0;
         document.getElementById('progressBar').style.width = `${accuracy}%`;
     },
 
     /** Renders the results screen for Practice Mode */
     renderResults: () => {
         App.appTitle.textContent = 'Practice Results';
-        const accuracy = (PracticeMode.attempted > 0) ? (PracticeMode.correct / PracticeMode.attempted * 100).toFixed(0) : 0;
         
+        // NEW: Get totals and calculate overall accuracy
+        const totalAttempted = PracticeMode.getTotalAttempted();
+        const totalCorrect = PracticeMode.getTotalCorrect();
+        const accuracy = (totalAttempted > 0) ? (totalCorrect / totalAttempted * 100).toFixed(0) : 0;
+        
+        // NEW: Build the detailed stats breakdown HTML
+        let statsHTML = '';
+        if (Object.keys(PracticeMode.stats).length > 1) { // Only show breakdown if more than one op was practiced
+            statsHTML = '<div class="col-span-2 text-left space-y-2 mt-4">';
+            statsHTML += '<h3 class="text-2xl font-bold text-gray-700 text-center mb-2">Breakdown by Operation</h3>';
+            
+            for (const op in PracticeMode.stats) {
+                const opStats = PracticeMode.stats[op];
+                const opAcc = (opStats.attempted > 0) ? (opStats.correct / opStats.attempted * 100).toFixed(0) : 0;
+                // Color-code the accuracy percentage
+                const opColor = opStats.attempted === 0 ? 'text-gray-400' : (opAcc < 70 ? 'text-red-600' : (opAcc < 90 ? 'text-yellow-600' : 'text-green-600'));
+                
+                statsHTML += `
+                    <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                        <span class="text-2xl font-bold">${formatOp(op)}</span>
+                        <span class="text-xl font-medium ${opStats.attempted === 0 ? 'text-gray-400' : ''}">
+                            ${opStats.correct} / ${opStats.attempted} 
+                            (${opStats.attempted > 0 ? `<span class="font-bold ${opColor}">${opAcc}%</span>` : 'N/A'})
+                        </span>
+                    </div>
+                `;
+            }
+            statsHTML += '</div>';
+        }
+        // END NEW
+
         App.screenContainer.innerHTML = `
             <div class="text-center space-y-6">
                 <h2 class="text-4xl font-bold">Great Job!</h2>
@@ -563,16 +608,13 @@ const PracticeMode = {
                     </div>
                     <div class="bg-gray-100 p-6 rounded-lg">
                         <div class="font-bold text-5xl text-indigo-600">${accuracy}%</div>
-                        <div class="text-lg text-gray-600">Accuracy</div>
+                        <div class="text-lg text-gray-600">Overall Accuracy</div>
                     </div>
-                    <div class="bg-gray-100 p-6 rounded-lg">
-                        <div class="font-bold text-5xl text-indigo-600">${PracticeMode.correct}</div>
-                        <div class="text-lg text-gray-600">Correct</div>
-                    </div>
-                    <div class="bg-gray-100 p-6 rounded-lg">
-                        <div class="font-bold text-5xl text-indigo-600">${PracticeMode.attempted}</div>
-                        <div class="text-lg text-gray-600">Attempted</div>
-                    </div>
+                    
+                    <!-- NEW: Detailed Stats Breakdown Rendered Here -->
+                    ${statsHTML}
+                    <!-- END NEW -->
+                    
                 </div>
                 <button id="practiceAgain" class="${BTN_BASE} ${BTN_GREEN}">Practice Again</button>
                 <button id="mainMenu" class="${BTN_BASE} ${BTN_GRAY}">Main Menu</button>
@@ -610,14 +652,11 @@ const MasterMode = {
         App.appTitle.textContent = 'Master Test Setup';
         const { maxAddend, maxFactor, ops } = MasterMode.gradeConfig;
         
-        // --- NEW: Build description strings ---
         let addSubDesc = `Addition & Subtraction problems up to ${maxAddend}.`;
         let multDivDesc = (ops.includes('x')) ? `Multiplication & Division facts from 0 to ${maxFactor}.` : "No multiplication or division.";
-        // --- END NEW ---
 
         App.screenContainer.innerHTML = `
             <div class="space-y-6">
-                <!-- NEW: Problem Range Description -->
                 <div class="bg-gray-100 p-6 rounded-lg shadow-inner">
                     <h3 class="text-xl font-bold text-indigo-700 mb-3 text-center">Problem Ranges for Your Grade</h3>
                     <ul class="list-disc list-inside space-y-2 text-lg text-gray-800">
@@ -626,7 +665,6 @@ const MasterMode = {
                     </ul>
                     <p class="text-center font-bold text-2xl text-indigo-600 mt-4">Target Score: ${MasterMode.targetScore}</p>
                 </div>
-                <!-- END NEW -->
             
                 <div class="flex items-center justify-center space-x-4">
                     <span class="text-lg font-medium ${MasterMode.isMultipleChoice ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Multiple Choice</span>
