@@ -14,18 +14,18 @@ const App = {
 
 // Grade-level configurations
 const GRADE_CONFIG = {
-    1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 20 },
-    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 20, maxFactor: 0, targetScore: 30 },
-    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 20, maxFactor: 10, targetScore: 40 },
-    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
-    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 12, targetScore: 60 },
-    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 60 },
-    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 70 },
-    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 80 },
+    1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 10 },
+    2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 12, maxFactor: 0, targetScore: 20 },
+    3: { name: '3rd Grade', ops: ['+', '-', 'x'], maxAddend: 15, maxFactor: 10, targetScore: 30 },
+    4: { name: '4th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 20, maxFactor: 12, targetScore: 40 },
+    5: { name: '5th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 25, maxFactor: 12, targetScore: 50 },
+    6: { name: '6th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 30, maxFactor: 20, targetScore: 60 },
+    7: { name: '7th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 40, maxFactor: 20, targetScore: 70 },
+    8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 50, maxFactor: 20, targetScore: 80 },
 };
 
 // Cooldown time on wrong answer (in milliseconds)
-const COOLDOWN_TIME = 2500;
+const COOLDOWN_TIME = 2000;
 
 // --- SHARED UI CONSTANTS (Tailwind Classes) ---
 const BTN_BASE = "font-extrabold py-5 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
