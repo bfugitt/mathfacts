@@ -37,14 +37,14 @@ const GRADE_STARTING_LEVELS = {
 };
 
 // Cooldown time on wrong answer (in milliseconds)
-const COOLDOWN_TIME = 1500;
+const COOLDOWN_TIME = 2500;
 // Spaced Repetition "box" limit
 const MAX_FACT_STRENGTH = 5; // Facts with strength 5 are "mastered"
 // Response Time (Fluency) threshold in milliseconds
 const FLUENCY_THRESHOLD = 3000; // 3 seconds
 // Mastery threshold for "leveling up" (EDITABLE)
-const MASTERY_THRESHOLD_PERCENT = 0.6; // 80%
-const MASTERY_THRESHOLD_COUNT = 2; // Must have seen at least 5 facts at this level
+const MASTERY_THRESHOLD_PERCENT = 0.8; // 80%
+const MASTERY_THRESHOLD_COUNT = 5; // Must have seen at least 5 facts at this level
 
 // --- SHARED UI CONSTANTS (Tailwind Classes) ---
 const BTN_BASE = "font-extrabold py-5 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
@@ -622,28 +622,56 @@ const PracticeMode = {
         let problemToAsk = null;
         
         if (PracticeMode.settings.isAdaptive) {
-            const allFacts = Object.entries(PracticeMode.studentProfile.factMastery);
-            const dueFacts = allFacts.filter(([key, fact]) => {
-                const { n1, n2, op } = fact;
-                const inOps = PracticeMode.settings.ops.includes(op);
-                const inRange = (op === '+' || op === '-') ? 
-                    (n1 <= PracticeMode.settings.gradeMaxAddend && n2 <= PracticeMode.settings.gradeMaxAddend) :
-                    (n1 <= PracticeMode.settings.gradeMaxFactor && n2 <= PracticeMode.settings.gradeMaxFactor);
-                
-                return key !== PracticeMode.lastProblemKey && inOps && inRange && fact.strength < MAX_FACT_STRENGTH;
-            });
-
-            const weakestFacts = dueFacts.filter(([key, fact]) => fact.strength === 1);
+            // --- NEW BALANCED LOGIC ---
+            // 40% chance to generate a NEW, RANDOMLY-BALANCED problem to ensure interleaving.
+            // 60% chance to review the WEAKEST fact from the student's history.
             
-            if (weakestFacts.length > 0 && Math.random() > PracticeMode.newFactChance) {
-                const [key, fact] = weakestFacts[Math.floor(Math.random() * weakestFacts.length)];
-                problemToAsk = fact;
-            } else if (dueFacts.length > 0 && Math.random() > PracticeMode.newFactChance) {
-                const [key, fact] = dueFacts[Math.floor(Math.random() * dueFacts.length)];
-                problemToAsk = fact;
+            if (Math.random() < PracticeMode.newFactChance) {
+                // --- 40% Chance: Interleave/Discover ---
+                // Generate a new, random problem based on the student's *current* level.
+                // This is balanced because generateProblem picks a random op.
+                const settingsForNewProblem = {
+                    ops: PracticeMode.settings.ops,
+                    currentMaxAddend: PracticeMode.settings.currentMaxAddend,
+                    currentMaxFactor: PracticeMode.settings.currentMaxFactor,
+                };
+                problemToAsk = generateProblem(settingsForNewProblem);
+                
+                let newKey = getFactKey(problemToAsk.n1, problemToAsk.n2, problemToAsk.op);
+                let attempts = 0;
+                while(newKey === PracticeMode.lastProblemKey && attempts < 10) {
+                     problemToAsk = generateProblem(settingsForNewProblem);
+                     newKey = getFactKey(problemToAsk.n1, problemToAsk.n2, problemToAsk.op);
+                     attempts++;
+                }
+
+            } else {
+                // --- 60% Chance: Review Weakest Fact ---
+                const allFacts = Object.entries(PracticeMode.studentProfile.factMastery);
+                const dueFacts = allFacts.filter(([key, fact]) => {
+                    const { n1, n2, op } = fact;
+                    const inOps = PracticeMode.settings.ops.includes(op);
+                    const inRange = (op === '+' || op === '-') ? 
+                        (n1 <= PracticeMode.settings.gradeMaxAddend && n2 <= PracticeMode.settings.gradeMaxAddend) :
+                        (n1 <= PracticeMode.settings.gradeMaxFactor && n2 <= PracticeMode.settings.gradeMaxFactor);
+                    
+                    return key !== PracticeMode.lastProblemKey && inOps && inRange && fact.strength < MAX_FACT_STRENGTH;
+                });
+
+                const weakestFacts = dueFacts.filter(([key, fact]) => fact.strength === 1);
+                
+                if (weakestFacts.length > 0) {
+                    const [key, fact] = weakestFacts[Math.floor(Math.random() * weakestFacts.length)];
+                    problemToAsk = fact;
+                } else if (dueFacts.length > 0) {
+                    const [key, fact] = dueFacts[Math.floor(Math.random() * dueFacts.length)];
+                    problemToAsk = fact;
+                }
             }
         }
         
+        // C. If no adaptive problem was chosen (e.g., 60% review but no facts were due)
+        //    or if we are in "Random" mode, generate a new problem.
         if (!problemToAsk) {
             const settingsForNewProblem = {
                 ops: PracticeMode.settings.ops,
