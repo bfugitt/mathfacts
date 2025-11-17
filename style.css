@@ -168,20 +168,30 @@ input[type=range]::-moz-range-track {
     background-size: 40px 40px;
 }
 
-/* --- NEW: Mastery Level Lights --- */
+/* --- NEW: Mastery Level Lights (Two-Row) --- */
+.mastery-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 12px;
+    gap: 2px;
+}
+.mastery-row-label {
+    font-family: monospace;
+    font-size: 0.75rem; /* 12px */
+    font-weight: 600;
+    color: #9ca3af; /* gray-400 */
+    margin-right: 4px;
+    width: 2.5rem; /* 40px */
+    text-align: right;
+}
 .mastery-light {
-    width: 1rem;  /* 16px */
-    height: 1rem; /* 16px */
+    width: 0.75rem;  /* 12px */
+    height: 0.75rem; /* 12px */
     border-radius: 9999px; /* full circle */
     background-color: #e5e7eb; /* gray-200 */
-    border: 2px solid #d1d5db; /* gray-300 */
+    border: 1px solid #d1d5db; /* gray-300 */
     transition: all 0.3s ease;
-}
-
-.mastery-light.mastered {
-    background-color: #4f46e5; /* indigo-600 */
-    border-color: #3730a3; /* indigo-800 */
-    box-shadow: 0 0 8px rgba(79, 70, 229, 0.5);
 }
 /* --- END NEW --- */
 
