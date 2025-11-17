@@ -12,7 +12,7 @@ const App = {
     appTitle: document.getElementById('appTitle'),
 };
 
-// Grade-level configurations (These are now the CEILINGS)
+// Grade-level configurations (These are the CEILINGS)
 const GRADE_CONFIG = {
     1: { name: '1st Grade', ops: ['+', '-'], maxAddend: 10, maxFactor: 0, targetScore: 20 },
     2: { name: '2nd Grade', ops: ['+', '-'], maxAddend: 20, maxFactor: 0, targetScore: 30 },
@@ -24,16 +24,25 @@ const GRADE_CONFIG = {
     8: { name: '8th Grade', ops: ['+', '-', 'x', '÷'], maxAddend: 100, maxFactor: 20, targetScore: 80 },
 };
 
+// NEW: Configurable starting levels for scaffolding (EDITABLE)
+const GRADE_STARTING_LEVELS = {
+    1: { startAddend: 2, startFactor: 0 },
+    2: { startAddend: 4, startFactor: 0 },
+    3: { startAddend: 6, startFactor: 2 },
+    4: { startAddend: 6, startFactor: 6 },
+    5: { startAddend: 8, startFactor: 8 },
+    6: { startAddend: 10, startFactor: 10 },
+    7: { startAddend: 10, startFactor: 10 },
+    8: { startAddend: 10, startFactor: 10 },
+};
+
 // Cooldown time on wrong answer (in milliseconds)
 const COOLDOWN_TIME = 2500;
 // Spaced Repetition "box" limit
 const MAX_FACT_STRENGTH = 5; // Facts with strength 5 are "mastered"
-// NEW: Response Time (Fluency) threshold in milliseconds
+// Response Time (Fluency) threshold in milliseconds
 const FLUENCY_THRESHOLD = 3000; // 3 seconds
-// NEW: Starting difficulty for scaffolding
-const STARTING_MAX_ADDEND = 6;
-const STARTING_MAX_FACTOR = 6;
-// NEW: Mastery threshold for "leveling up"
+// Mastery threshold for "leveling up" (EDITABLE)
 const MASTERY_THRESHOLD_PERCENT = 0.8; // 80%
 const MASTERY_THRESHOLD_COUNT = 5; // Must have seen at least 5 facts at this level
 
@@ -80,11 +89,33 @@ function formatOp(op) {
     return op;
 }
 
-// --- NEW: ADAPTIVE LEARNING (localStorage) UTILITIES ---
+// --- NEW: DYNAMIC SCORING UTILITIES ---
+/** Calculates the score value for a correct problem */
+function getScoreValue(n1, n2, op) {
+    let base = 5; // Minimum score
+    if (op === '+' || op === 'x') {
+        base = n1 + n2;
+    } else if (op === '-') {
+        base = n1; // Score based on the dividend
+    } else if (op === '÷') {
+        base = n1; // Score based on the dividend (n1 = 12 in 12 / 4)
+    }
+    // Give a minimum of 5 points, max of 50
+    return Math.max(5, Math.min(50, base));
+}
 
-/**
- * Creates a unique, canonical key for a math fact.
- */
+/** Calculates the score penalty for an incorrect problem */
+function getPenaltyValue(n1, n2, op) {
+    let score = getScoreValue(n1, n2, op);
+    // Penalty is half the value, with a minimum of 2
+    return Math.max(2, Math.floor(score / 2));
+}
+// --- END DYNAMIC SCORING ---
+
+
+// --- ADAPTIVE LEARNING (localStorage) UTILITIES ---
+
+/** Creates a unique, canonical key for a math fact. */
 function getFactKey(n1, n2, op) {
     if (op === '+' || op === 'x') {
         return (n1 < n2) ? `${n1}${op}${n2}` : `${n2}${op}${n1}`;
@@ -92,10 +123,7 @@ function getFactKey(n1, n2, op) {
     return `${n1}${op}${n2}`;
 }
 
-/**
- * NEW: Loads the student's entire profile from localStorage.
- * The profile contains *both* fact mastery and grade progress.
- */
+/** Loads the student's entire profile from localStorage. */
 function loadStudentProfile() {
     let profile = {};
     try {
@@ -105,7 +133,6 @@ function loadStudentProfile() {
         console.error("Error loading student profile:", e);
     }
     
-    // Ensure the profile has the minimum required structure
     if (!profile.factMastery) {
         profile.factMastery = {};
     }
@@ -116,9 +143,7 @@ function loadStudentProfile() {
     return profile;
 }
 
-/**
- * NEW: Saves the student's entire profile to localStorage.
- */
+/** Saves the student's entire profile to localStorage. */
 function saveStudentProfile(profile) {
     try {
         localStorage.setItem('mathFactProfile', JSON.stringify(profile));
@@ -127,32 +152,28 @@ function saveStudentProfile(profile) {
     }
 }
 
-/**
- * NEW: Gets the progress for the current grade, or initializes it.
- */
+/** Gets the progress for the current grade, or initializes it. */
 function getOrInitGradeProgress(grade) {
     const profile = loadStudentProfile();
     if (!profile.gradeProgress[grade]) {
-        // This is the "Start Easy" logic.
-        // Everyone starts at the base level.
+        // NEW: Read from the configurable starting levels
+        const startingLevel = GRADE_STARTING_LEVELS[grade] || { startAddend: 2, startFactor: 2 };
+        
         profile.gradeProgress[grade] = {
-            currentMaxAddend: STARTING_MAX_ADDEND,
-            currentMaxFactor: (GRADE_CONFIG[grade].ops.includes('x')) ? STARTING_MAX_FACTOR : 0
+            currentMaxAddend: startingLevel.startAddend,
+            currentMaxFactor: (GRADE_CONFIG[grade].ops.includes('x')) ? startingLevel.startFactor : 0
         };
         saveStudentProfile(profile);
     }
     return profile.gradeProgress[grade];
 }
-// --- END NEW ADAPTIVE UTILITIES ---
+// --- END ADAPTIVE UTILITIES ---
 
 
-/** * Generates a new math problem based on settings.
- * NEW: Now uses the student's *personal* max, not the grade's.
- */
+/** Generates a new math problem based on settings. */
 function generateProblem(settings) {
     const op = settings.ops[Math.floor(Math.random() * settings.ops.length)];
     let n1, n2, answer;
-    // NEW: Use the scaffolded max from settings
     const maxAdd = settings.currentMaxAddend;
     const maxFact = settings.currentMaxFactor;
 
@@ -266,8 +287,7 @@ function renderGradeSelect() {
 /** Renders the screen to select a game mode. */
 function renderModeSelect(grade) {
     App.appTitle.textContent = `Grade ${grade} - Select Mode`;
-    // NEW: Clear mastery lights when leaving practice mode
-    document.getElementById('masteryLightsContainer').innerHTML = '';
+    PracticeMode.clearMasteryLights(); // Clear lights
     
     App.screenContainer.innerHTML = `
         <button id="startPractice" class="${BTN_BASE} ${BTN_GREEN}">
@@ -301,15 +321,12 @@ const PracticeMode = {
     timeLimit: 0, 
     problemLimit: 0,
     stats: {},
-
-    // NEW: Adaptive Learning state
     isAdaptive: true,
-    studentProfile: {}, // Will hold ALL data (mastery + progress)
-    problemStartTime: 0, // For fluency check
-    lastProblemKey: null, // For no-repeat check
+    studentProfile: {},
+    problemStartTime: 0,
+    lastProblemKey: null,
     newFactChance: 0.4, 
 
-    // Helper functions to get totals
     getTotalAttempted: () => {
         return Object.values(PracticeMode.stats).reduce((sum, opStats) => sum + opStats.attempted, 0);
     },
@@ -317,42 +334,69 @@ const PracticeMode = {
         return Object.values(PracticeMode.stats).reduce((sum, opStats) => sum + opStats.correct, 0);
     },
     
-    // NEW: Function to render the mastery lights
+    /** NEW: Renders the two-row mastery lights */
     renderMasteryLights: () => {
-        const container = document.getElementById('masteryLightsContainer');
-        if (!container || !PracticeMode.settings.isAdaptive) {
-            if(container) container.innerHTML = ''; // Clear if not adaptive
+        const addSubContainer = document.getElementById('add-sub-lights-row');
+        const multDivContainer = document.getElementById('mult-div-lights-row');
+        
+        if (!addSubContainer || !multDivContainer || !PracticeMode.settings.isAdaptive) {
+            PracticeMode.clearMasteryLights(); // Clear if not adaptive
             return;
         }
 
         // 1. Find all facts relevant to the *selected operations*
-        const relevantFacts = Object.values(PracticeMode.studentProfile.factMastery).filter(fact => {
-            return PracticeMode.settings.ops.includes(fact.op);
+        const addSubFacts = Object.values(PracticeMode.studentProfile.factMastery).filter(fact => {
+            return (fact.op === '+' || fact.op === '-') && PracticeMode.settings.ops.includes(fact.op);
+        });
+        const multDivFacts = Object.values(PracticeMode.studentProfile.factMastery).filter(fact => {
+            return (fact.op === 'x' || fact.op === '÷') && PracticeMode.settings.ops.includes(fact.op);
         });
 
-        if (relevantFacts.length === 0) {
-            container.innerHTML = Array(5).fill('<div class="mastery-light"></div>').join('');
-            return;
+        // 2. Calculate mastery for Add/Sub
+        let addSubHTML = '<span class="mastery-row-label">+/&minus;</span>';
+        if (PracticeMode.settings.ops.includes('+') || PracticeMode.settings.ops.includes('-')) {
+            let addLightsToFill = 0;
+            if (addSubFacts.length > 0) {
+                const addMastered = addSubFacts.filter(fact => fact.strength >= 3).length;
+                const addPercent = addMastered / addSubFacts.length;
+                addLightsToFill = Math.floor(addPercent * 10);
+            }
+            for (let i = 0; i < 10; i++) {
+                addSubHTML += `<div class="mastery-light ${i < addLightsToFill ? 'mastered' : ''}"></div>`;
+            }
+        } else {
+            // Not selected, show empty
+            for (let i = 0; i < 10; i++) { addSubHTML += `<div class="mastery-light opacity-20"></div>`; }
         }
-
-        // 2. Calculate mastery
-        const masteredFacts = relevantFacts.filter(fact => fact.strength >= 3); // "Reviewing" or higher
-        const percentMastered = masteredFacts.length / relevantFacts.length;
         
-        // 3. Determine how many lights to fill (0-5)
-        let lightsToFill = 0;
-        if (percentMastered >= 0.95) lightsToFill = 5;       // 95-100%
-        else if (percentMastered >= 0.75) lightsToFill = 4;  // 75-94%
-        else if (percentMastered >= 0.50) lightsToFill = 3;  // 50-74%
-        else if (percentMastered >= 0.25) lightsToFill = 2;  // 25-49%
-        else if (percentMastered > 0) lightsToFill = 1;      // 1-24%
+        // 3. Calculate mastery for Mult/Div
+        let multDivHTML = '<span class="mastery-row-label">&times;/&divide;</span>';
+        if (PracticeMode.settings.ops.includes('x') || PracticeMode.settings.ops.includes('÷')) {
+            let multLightsToFill = 0;
+            if (multDivFacts.length > 0) {
+                const multMastered = multDivFacts.filter(fact => fact.strength >= 3).length;
+                const multPercent = multMastered / multDivFacts.length;
+                multLightsToFill = Math.floor(multPercent * 10);
+            }
+            for (let i = 0; i < 10; i++) {
+                multDivHTML += `<div class="mastery-light ${i < multLightsToFill ? 'mastered' : ''}"></div>`;
+            }
+        } else {
+            // Not selected, show empty
+            for (let i = 0; i < 10; i++) { multDivHTML += `<div class="mastery-light opacity-20"></div>`; }
+        }
 
         // 4. Render lights
-        let lightsHTML = '';
-        for (let i = 0; i < 5; i++) {
-            lightsHTML += `<div class="mastery-light ${i < lightsToFill ? 'mastered' : ''}"></div>`;
-        }
-        container.innerHTML = lightsHTML;
+        addSubContainer.innerHTML = addSubHTML;
+        multDivContainer.innerHTML = multDivHTML;
+    },
+    
+    /** NEW: Clears all mastery lights and labels */
+    clearMasteryLights: () => {
+        const addSubContainer = document.getElementById('add-sub-lights-row');
+        const multDivContainer = document.getElementById('mult-div-lights-row');
+        if (addSubContainer) addSubContainer.innerHTML = '';
+        if (multDivContainer) multDivContainer.innerHTML = '';
     },
 
     TIME_MAP: { '0': 'No Limit', '1': '30s', '2': '60s', '3': '120s' },
@@ -377,7 +421,6 @@ const PracticeMode = {
             </div>
         `).join('');
 
-        // NEW: Get the student's current scaffolded level to display it.
         const gradeProgress = getOrInitGradeProgress(App.currentGrade);
         let adaptiveDesc = `Starts at your current level (e.g., up to ${gradeProgress.currentMaxAddend}, facts up to ${gradeProgress.currentMaxFactor}) and adapts.`;
         if (!PracticeMode.isAdaptive) {
@@ -411,7 +454,6 @@ const PracticeMode = {
                     </div>
                     <span class="text-lg font-medium ${PracticeMode.isAdaptive ? 'text-indigo-600 font-bold' : 'text-gray-500'}">Adaptive Learning</span>
                 </div>
-                <!-- NEW: Dynamic description -->
                 <p id="adaptiveDesc" class="text-center text-sm text-gray-600 -mt-2">${adaptiveDesc}</p>
 
                 <!-- Sliders for Time and Problem Limits -->
@@ -431,7 +473,6 @@ const PracticeMode = {
             </div>
         `;
 
-        // Event listener for toggle
         document.getElementById('toggleInputMode').addEventListener('change', (e) => {
             PracticeMode.isMultipleChoice = !e.target.checked;
             document.querySelector('span[class*="Multiple Choice"]').classList.toggle('text-indigo-600');
@@ -442,10 +483,8 @@ const PracticeMode = {
             document.querySelector('span[class*="Keyed Entry"]').classList.toggle('text-gray-500');
         });
         
-        // Event listener for Adaptive toggle
         document.getElementById('toggleAdaptive').addEventListener('change', (e) => {
             PracticeMode.isAdaptive = e.target.checked;
-            // Update labels
             document.querySelector('span[class*="Random Practice"]').classList.toggle('text-indigo-600');
             document.querySelector('span[class*="Random Practice"]').classList.toggle('font-bold');
             document.querySelector('span[class*="Random Practice"]').classList.toggle('text-gray-500');
@@ -453,7 +492,6 @@ const PracticeMode = {
             document.querySelector('span[class*="Adaptive Learning"]').classList.toggle('font-bold');
             document.querySelector('span[class*="Adaptive Learning"]').classList.toggle('text-gray-500');
             
-            // NEW: Update dynamic description
             const gradeProgress = getOrInitGradeProgress(App.currentGrade);
             const descEl = document.getElementById('adaptiveDesc');
             if (PracticeMode.isAdaptive) {
@@ -463,7 +501,6 @@ const PracticeMode = {
             }
         });
         
-        // Event listeners for sliders
         document.getElementById('practiceTimeLimit').addEventListener('input', e => {
             document.getElementById('practiceTimeValue').textContent = PracticeMode.TIME_MAP[e.target.value];
         });
@@ -471,7 +508,6 @@ const PracticeMode = {
             document.getElementById('practiceProblemValue').textContent = PracticeMode.PROB_MAP[e.target.value];
         });
 
-        // Event listener for start
         document.getElementById('startPracticeGame').addEventListener('click', () => {
             const selectedOps = Array.from(document.querySelectorAll('.form-checkbox:checked')).map(cb => cb.value);
             if (selectedOps.length === 0) {
@@ -484,18 +520,14 @@ const PracticeMode = {
             PracticeMode.timeLimit = PracticeMode.TIME_VAL_MAP[timeSliderVal];
             PracticeMode.problemLimit = PracticeMode.PROB_VAL_MAP[probSliderVal];
             
-            // NEW: Load the full profile and set settings
             PracticeMode.studentProfile = loadStudentProfile();
             const gradeProgress = getOrInitGradeProgress(App.currentGrade);
 
             if (PracticeMode.isAdaptive) {
-                // ADAPTIVE settings use the student's *scaffolded* level
                 PracticeMode.settings = {
                     ops: selectedOps,
-                    // Use student's personal max
                     currentMaxAddend: gradeProgress.currentMaxAddend, 
                     currentMaxFactor: gradeProgress.currentMaxFactor,
-                    // And the grade's max as a ceiling
                     gradeMaxAddend: PracticeMode.gradeConfig.maxAddend,
                     gradeMaxFactor: PracticeMode.gradeConfig.maxFactor,
                     timeLimit: PracticeMode.timeLimit,
@@ -503,13 +535,10 @@ const PracticeMode = {
                     isAdaptive: true
                 };
             } else {
-                // RANDOM settings use the *grade's* max level
                 PracticeMode.settings = {
                     ops: selectedOps,
-                    // Use grade's max
                     currentMaxAddend: PracticeMode.gradeConfig.maxAddend,
                     currentMaxFactor: PracticeMode.gradeConfig.maxFactor,
-                    // Grade max is the same
                     gradeMaxAddend: PracticeMode.gradeConfig.maxAddend,
                     gradeMaxFactor: PracticeMode.gradeConfig.maxFactor,
                     timeLimit: PracticeMode.timeLimit,
@@ -528,14 +557,12 @@ const PracticeMode = {
         PracticeMode.score = 0;
         PracticeMode.isCoolingDown = false;
         if (PracticeMode.gameInterval) clearInterval(PracticeMode.gameInterval);
-        PracticeMode.lastProblemKey = null; // NEW: Reset last problem
+        PracticeMode.lastProblemKey = null;
         
         PracticeMode.stats = {};
         PracticeMode.settings.ops.forEach(op => {
             PracticeMode.stats[op] = { correct: 0, attempted: 0 };
         });
-        
-        // Note: Full profile is already loaded in `start`
         
         const hasTimeLimit = PracticeMode.settings.timeLimit > 0;
         PracticeMode.timer = hasTimeLimit ? PracticeMode.settings.timeLimit : 0;
@@ -586,7 +613,7 @@ const PracticeMode = {
         }, 1000);
 
         PracticeMode.nextProblem();
-        PracticeMode.renderMasteryLights(); // NEW: Render lights on game start
+        PracticeMode.renderMasteryLights(); // Render lights on game start
     },
 
     /** Generates and displays the next problem (ADAPTIVE ENGINE) */
@@ -595,37 +622,29 @@ const PracticeMode = {
         let problemToAsk = null;
         
         if (PracticeMode.settings.isAdaptive) {
-            // --- ADAPTIVE LOGIC ---
             const allFacts = Object.entries(PracticeMode.studentProfile.factMastery);
             const dueFacts = allFacts.filter(([key, fact]) => {
                 const { n1, n2, op } = fact;
-                // Check if fact is in the *grade's* ceiling, not the student's current
                 const inOps = PracticeMode.settings.ops.includes(op);
                 const inRange = (op === '+' || op === '-') ? 
                     (n1 <= PracticeMode.settings.gradeMaxAddend && n2 <= PracticeMode.settings.gradeMaxAddend) :
                     (n1 <= PracticeMode.settings.gradeMaxFactor && n2 <= PracticeMode.settings.gradeMaxFactor);
                 
-                // NEW: Don't pick the last problem, and only pick non-mastered
                 return key !== PracticeMode.lastProblemKey && inOps && inRange && fact.strength < MAX_FACT_STRENGTH;
             });
 
-            // Find the *weakest* facts (strength = 1)
             const weakestFacts = dueFacts.filter(([key, fact]) => fact.strength === 1);
             
             if (weakestFacts.length > 0 && Math.random() > PracticeMode.newFactChance) {
-                // A. Prioritize "Struggling" facts (Box 1)
                 const [key, fact] = weakestFacts[Math.floor(Math.random() * weakestFacts.length)];
                 problemToAsk = fact;
             } else if (dueFacts.length > 0 && Math.random() > PracticeMode.newFactChance) {
-                // B. Review any other "due" fact (Boxes 2-4)
                 const [key, fact] = dueFacts[Math.floor(Math.random() * dueFacts.length)];
                 problemToAsk = fact;
             }
         }
         
-        // C. If no adaptive fact was chosen, or in random mode, generate a new one.
         if (!problemToAsk) {
-            // Use the student's *current* max for NEW problems
             const settingsForNewProblem = {
                 ops: PracticeMode.settings.ops,
                 currentMaxAddend: PracticeMode.settings.currentMaxAddend,
@@ -633,7 +652,6 @@ const PracticeMode = {
             };
             problemToAsk = generateProblem(settingsForNewProblem);
             
-            // Ensure this *new* problem isn't the same as the last one
             let newKey = getFactKey(problemToAsk.n1, problemToAsk.n2, problemToAsk.op);
             let attempts = 0;
             while(newKey === PracticeMode.lastProblemKey && attempts < 10) {
@@ -645,9 +663,8 @@ const PracticeMode = {
         
         PracticeMode.problem = problemToAsk;
         
-        // --- (Unchanged) Display the chosen problem ---
         const { n1, n2, op, answer } = PracticeMode.problem;
-        PracticeMode.lastProblemKey = getFactKey(n1, n2, op); // NEW: Store this problem as the last one
+        PracticeMode.lastProblemKey = getFactKey(n1, n2, op);
         
         document.getElementById('problemDisplay').textContent = `${n1} ${formatOp(op)} ${n2} = ?`;
         document.getElementById('helperTextDisplay').textContent = ''; 
@@ -677,11 +694,9 @@ const PracticeMode = {
             document.addEventListener('keydown', PracticeMode.handleKeyboardInput);
         }
         
-        // NEW: Log the start time for fluency check
         PracticeMode.problemStartTime = Date.now();
     },
     
-    /** Handle 'Enter' key for keyed input */
     handleKeyboardInput: (e) => {
         if (e.key === 'Enter') {
             const input = document.getElementById('answerInput');
@@ -701,10 +716,10 @@ const PracticeMode = {
 
         PracticeMode.isCoolingDown = true;
         
-        // NEW: Calculate response time
         const responseTime = Date.now() - PracticeMode.problemStartTime;
         
-        const op = PracticeMode.problem.op;
+        const { n1, n2, op, answer } = PracticeMode.problem;
+        
         PracticeMode.stats[op].attempted++;
         const totalAttempted = PracticeMode.getTotalAttempted();
         
@@ -713,50 +728,41 @@ const PracticeMode = {
         
         const problemLimitReached = PracticeMode.settings.problemLimit > 0 && totalAttempted >= PracticeMode.settings.problemLimit;
 
-        // --- NEW: ADAPTIVE LEARNING UPDATE ---
         if (PracticeMode.settings.isAdaptive) {
-            const { n1, n2, op, answer } = PracticeMode.problem;
             const factKey = getFactKey(n1, n2, op);
-            
             const fact = PracticeMode.studentProfile.factMastery[factKey] || {
                 n1, n2, op, answer, strength: 0
             };
 
             if (isCorrect) {
-                // NEW: Fluency check
                 if (responseTime < FLUENCY_THRESHOLD) {
-                    // FAST & Correct: +2 strength
                     fact.strength = Math.min(MAX_FACT_STRENGTH, fact.strength + 2);
                 } else {
-                    // SLOW & Correct: +1 strength
                     fact.strength = Math.min(MAX_FACT_STRENGTH, fact.strength + 1);
                 }
             } else {
-                // Incorrect: Reset to Box 1
                 fact.strength = 1;
             }
             
             PracticeMode.studentProfile.factMastery[factKey] = fact;
             
-            // NEW: Run the "Level Up" check
             if (isCorrect) {
                 PracticeMode.checkAndLevelUp(op);
             }
             
-            // Save the *entire* profile
             saveStudentProfile(PracticeMode.studentProfile);
-            PracticeMode.renderMasteryLights(); // NEW: Update lights after check
+            PracticeMode.renderMasteryLights(); // Update lights after check
         }
-        // --- END ADAPTIVE UPDATE ---
 
         if (isCorrect) {
             playCorrectSound();
             PracticeMode.stats[op].correct++;
-            PracticeMode.score += 10;
+            // NEW: DYNAMIC SCORING
+            PracticeMode.score += getScoreValue(n1, n2, op);
             
             if (PracticeMode.isMultipleChoice) {
                 document.querySelectorAll('.choice-button').forEach(btn => {
-                    if (parseInt(btn.dataset.answer) === PracticeMode.problem.answer) {
+                    if (parseInt(btn.dataset.answer) === answer) {
                         btn.classList.add('correct-flash');
                     }
                     btn.disabled = true;
@@ -778,11 +784,12 @@ const PracticeMode = {
 
         } else {
             playIncorrectSound();
-            PracticeMode.score = Math.max(0, PracticeMode.score - 5);
+            // NEW: DYNAMIC SCORING PENALTY
+            PracticeMode.score = Math.max(0, PracticeMode.score - getPenaltyValue(n1, n2, op));
             
             if (PracticeMode.isMultipleChoice) {
                 document.querySelectorAll('.choice-button').forEach(btn => {
-                    if (parseInt(btn.dataset.answer) === PracticeMode.problem.answer) {
+                    if (parseInt(btn.dataset.answer) === answer) {
                         btn.classList.add('correct-flash');
                     } else if (btn.textContent === userAnswer) {
                         btn.classList.add('incorrect-flash');
@@ -792,7 +799,7 @@ const PracticeMode = {
             } else {
                 input.classList.add('incorrect-flash');
                 input.disabled = true;
-                document.getElementById('helperTextDisplay').textContent = `Correct Answer: ${PracticeMode.problem.answer}`;
+                document.getElementById('helperTextDisplay').textContent = `Correct Answer: ${answer}`;
             }
 
             setTimeout(() => {
@@ -816,17 +823,13 @@ const PracticeMode = {
         document.getElementById('progressBar').style.width = `${accuracy}%`;
     },
 
-    /**
-     * NEW: Checks if the student has mastered the current difficulty level
-     * and "levels them up" if they have.
-     */
+    /** Checks if the student has mastered the current difficulty level */
     checkAndLevelUp: (op) => {
         const gradeProgress = PracticeMode.studentProfile.gradeProgress[App.currentGrade];
         const { factMastery } = PracticeMode.studentProfile;
         
         let currentMax, maxKey, gradeCeiling;
         
-        // Determine which level to check (+/- or x/÷)
         if (op === '+' || op === '-') {
             currentMax = gradeProgress.currentMaxAddend;
             maxKey = 'currentMaxAddend';
@@ -837,33 +840,29 @@ const PracticeMode = {
             gradeCeiling = PracticeMode.settings.gradeMaxFactor;
         }
 
-        // Don't check if they are already at the max for their grade
         if (currentMax >= gradeCeiling) {
             return;
         }
 
-        // Find all *seen* facts that include the current max number
         const factsAtThisLevel = Object.values(factMastery).filter(fact => {
-            return (fact.op === op) && (fact.n1 === currentMax || fact.n2 === currentMax);
+            // Find facts *at this level*
+            const opMatch = (op === '+' || op === '-') ? (fact.op === '+' || fact.op === '-') : (fact.op === 'x' || fact.op === '÷');
+            const numMatch = (fact.n1 === currentMax || fact.n2 === currentMax);
+            return opMatch && numMatch;
         });
 
-        // Only check for level-up if we have enough data
         if (factsAtThisLevel.length < MASTERY_THRESHOLD_COUNT) {
             return;
         }
 
-        // Check if the mastery threshold is met
-        const masteredFacts = factsAtThisLevel.filter(fact => fact.strength >= 3); // "Reviewing" or higher
+        const masteredFacts = factsAtThisLevel.filter(fact => fact.strength >= 3);
         const masteryPercent = masteredFacts.length / factsAtThisLevel.length;
 
         if (masteryPercent >= MASTERY_THRESHOLD_PERCENT) {
-            // LEVEL UP!
             const newMax = currentMax + 1;
             PracticeMode.studentProfile.gradeProgress[App.currentGrade][maxKey] = newMax;
-            // Also update the *session* settings
-            PracticeMode.settings[maxKey] = newMax;
+            PracticeMode.settings[maxKey] = newMax; // Update session settings
             
-            // (We don't need to save here, as checkAnswer() saves right after this)
             console.log(`LEVEL UP for op ${op}: New max is ${newMax}`);
         }
     },
@@ -872,22 +871,20 @@ const PracticeMode = {
     /** Renders the results screen for Practice Mode */
     renderResults: () => {
         App.appTitle.textContent = 'Practice Results';
-        // NEW: Clear mastery lights on results screen
-        document.getElementById('masteryLightsContainer').innerHTML = '';
+        PracticeMode.clearMasteryLights(); // Clear lights
         
         const totalAttempted = PracticeMode.getTotalAttempted();
         const totalCorrect = PracticeMode.getTotalCorrect();
         const accuracy = (totalAttempted > 0) ? (totalCorrect / totalAttempted * 100).toFixed(0) : 0;
         
         let statsHTML = '';
-        // Show breakdown if more than one op was practiced OR if adaptive is on
         if (Object.keys(PracticeMode.stats).length > 1 || PracticeMode.settings.isAdaptive) {
             statsHTML = '<div class="col-span-2 text-left space-y-2 mt-4">';
             statsHTML += '<h3 class="text-2xl font-bold text-gray-700 text-center mb-2">Breakdown by Operation</h3>';
             
             for (const op in PracticeMode.stats) {
                 const opStats = PracticeMode.stats[op];
-                if (opStats.attempted === 0) continue; // Don't show ops they didn't practice
+                if (opStats.attempted === 0) continue;
                 
                 const opAcc = (opStats.attempted > 0) ? (opStats.correct / opStats.attempted * 100).toFixed(0) : 0;
                 const opColor = (opAcc < 70 ? 'text-red-600' : (opAcc < 90 ? 'text-yellow-600' : 'text-green-600'));
@@ -932,7 +929,6 @@ const PracticeMode = {
 };
 
 // --- 3. GAME MODE: MASTER TEST ---
-// (This mode is unchanged by adaptive logic, as it's a "test" not "practice")
 const MasterMode = {
     gradeConfig: {},
     settings: {},
@@ -948,8 +944,7 @@ const MasterMode = {
 
     start: (gradeConfig) => {
         App.currentMode = 'master';
-        // NEW: Clear mastery lights when leaving practice mode
-        document.getElementById('masteryLightsContainer').innerHTML = '';
+        PracticeMode.clearMasteryLights(); // Clear lights
         MasterMode.gradeConfig = gradeConfig;
         MasterMode.targetScore = gradeConfig.targetScore;
         MasterMode.renderSetupScreen();
@@ -1057,11 +1052,12 @@ const MasterMode = {
         if (MasterMode.timer <= 0) return; 
         MasterMode.isCoolingDown = false;
         
-        // Master test ALWAYS uses the grade's max, not the scaffolded one
         const masterSettings = {
             ops: MasterMode.settings.ops,
-            maxAddend: MasterMode.settings.maxAddend,
-            maxFactor: MasterMode.settings.maxFactor
+            maxAddend: MasterMode.settings.maxAddend, // Master test uses grade max
+            maxFactor: MasterMode.settings.maxFactor,
+            currentMaxAddend: MasterMode.settings.maxAddend, // Set current to max
+            currentMaxFactor: MasterMode.settings.maxFactor
         };
         MasterMode.problem = generateProblem(masterSettings);
         
@@ -1110,17 +1106,19 @@ const MasterMode = {
 
         MasterMode.isCoolingDown = true;
         MasterMode.attempted++;
-        const isCorrect = parseInt(userAnswer) === MasterMode.problem.answer;
+        const { n1, n2, op, answer } = MasterMode.problem;
+        const isCorrect = parseInt(userAnswer) === answer;
         const input = document.getElementById('answerInput');
 
         if (isCorrect) {
             playCorrectSound();
             MasterMode.correct++;
-            MasterMode.score++;
+            // NEW: DYNAMIC SCORING for Master Test
+            MasterMode.score += getScoreValue(n1, n2, op);
             
             if (MasterMode.isMultipleChoice) {
                 document.querySelectorAll('.choice-button').forEach(btn => {
-                    if (parseInt(btn.dataset.answer) === MasterMode.problem.answer) {
+                    if (parseInt(btn.dataset.answer) === answer) {
                         btn.classList.add('correct-flash');
                     }
                     btn.disabled = true;
@@ -1140,7 +1138,7 @@ const MasterMode = {
             
             if (MasterMode.isMultipleChoice) {
                 document.querySelectorAll('.choice-button').forEach(btn => {
-                    if (parseInt(btn.dataset.answer) === MasterMode.problem.answer) {
+                    if (parseInt(btn.dataset.answer) === answer) {
                         btn.classList.add('correct-flash');
                     } else if (btn.textContent === userAnswer) {
                         btn.classList.add('incorrect-flash');
@@ -1150,7 +1148,7 @@ const MasterMode = {
             } else {
                 input.classList.add('incorrect-flash');
                 input.disabled = true;
-                document.getElementById('helperTextDisplay').textContent = `Correct Answer: ${MasterMode.problem.answer}`;
+                document.getElementById('helperTextDisplay').textContent = `Correct Answer: ${answer}`;
             }
 
             setTimeout(() => {
@@ -1165,6 +1163,7 @@ const MasterMode = {
         }
         
         document.getElementById('scoreDisplay').textContent = `Score: ${MasterMode.score}`;
+        // Progress bar is now based on target *score* not target *count*
         const progress = (MasterMode.targetScore > 0) ? (MasterMode.score / MasterMode.targetScore) * 100 : 0;
         document.getElementById('progressBar').style.width = `${Math.min(progress, 100)}%`;
     },
@@ -1176,7 +1175,7 @@ const MasterMode = {
         
         let resultMessage = passed
             ? `<h2 class="text-4xl font-bold text-green-600">You Passed!</h2><p class="text-2xl text-gray-700">You met the target score of ${MasterMode.targetScore}!</p>`
-            : `<h2 class="text-4xl font-bold text-red-600">Try Again!</h2><p class="text-2xl text-gray-700">You were ${MasterMode.targetScore - MasterMode.score} points away from the target of ${MasterMode.targetScore}.</p>`;
+            : `<h2 class="text-4xl font-bold text-red-600">Try Again!</h2><p class="text-2xl text-gray-700">You were ${MasterLogit.targetScore - MasterMode.score} points away from the target of ${MasterMode.targetScore}.</p>`;
 
         App.screenContainer.innerHTML = `
             <div class="text-center space-y-6">
@@ -1210,7 +1209,6 @@ const MasterMode = {
 };
 
 // --- 4. GAME MODE: FACTS DUEL ---
-// (This mode is also unchanged by adaptive logic)
 const DuelMode = {
     gradeConfig: {},
     settings: {},
@@ -1221,8 +1219,7 @@ const DuelMode = {
 
     start: (gradeConfig) => {
         App.currentMode = 'duel';
-        // NEW: Clear mastery lights when leaving practice mode
-        document.getElementById('masteryLightsContainer').innerHTML = '';
+        PracticeMode.clearMasteryLights(); // Clear lights
         DuelMode.gradeConfig = gradeConfig;
         DuelMode.renderSetupScreen();
     },
@@ -1285,6 +1282,9 @@ const DuelMode = {
                 ops: selectedOps,
                 maxAddend: parseInt(document.getElementById('duelMaxAdd').value),
                 maxFactor: parseInt(document.getElementById('duelMaxFact').value),
+                // NEW: Use the settings for generateProblem
+                currentMaxAddend: parseInt(document.getElementById('duelMaxAdd').value),
+                currentMaxFactor: parseInt(document.getElementById('duelMaxFact').value),
                 timer: 60
             };
             
@@ -1358,13 +1358,7 @@ const DuelMode = {
     nextProblemForPlayer: (player) => {
         if (player.isCoolingDown) return;
         
-        // Duel mode always uses the settings from the setup screen, not adaptive
-        const duelSettings = {
-            ops: DuelMode.settings.ops,
-            maxAddend: DuelMode.settings.maxAddend,
-            maxFactor: DuelMode.settings.maxFactor
-        };
-        player.problem = generateProblem(duelSettings);
+        player.problem = generateProblem(DuelMode.settings);
         player.choices = getMultipleChoices(player.problem.answer);
         
         const { n1, n2, op } = player.problem;
@@ -1423,13 +1417,15 @@ const DuelMode = {
         
         player.isCoolingDown = true;
         const selectedAnswer = player.choices[choiceIndex];
-        const isCorrect = selectedAnswer === player.problem.answer;
+        const { n1, n2, op, answer } = player.problem;
+        const isCorrect = selectedAnswer === answer;
         const container = document.getElementById(player.containerId);
         const choiceButtons = document.getElementById(player.choicesId).querySelectorAll('button');
 
         if (isCorrect) {
             playCorrectSound();
-            player.score++;
+            // NEW: DYNAMIC SCORING for Duel
+            player.score += getScoreValue(n1, n2, op);
             container.classList.add('duel-correct-flash');
             
             choiceButtons[choiceIndex].classList.add('correct-flash');
@@ -1442,14 +1438,15 @@ const DuelMode = {
 
         } else {
             playIncorrectSound();
-            player.score = Math.max(0, player.score - 1);
+            // NEW: DYNAMIC SCORING PENALTY for Duel
+            player.score = Math.max(0, player.score - getPenaltyValue(n1, n2, op));
             container.classList.add('duel-incorrect-flash');
             
             choiceButtons.forEach((btn, index) => {
                 if (index === choiceIndex) {
                     btn.classList.add('incorrect-flash');
                 }
-                if (player.choices[index] === player.problem.answer) {
+                if (player.choices[index] === answer) {
                     btn.classList.add('correct-flash');
                 }
             });
