@@ -37,14 +37,14 @@ const GRADE_STARTING_LEVELS = {
 };
 
 // Cooldown time on wrong answer (in milliseconds)
-const COOLDOWN_TIME = 2500;
+const COOLDOWN_TIME = 1500;
 // Spaced Repetition "box" limit
 const MAX_FACT_STRENGTH = 5; // Facts with strength 5 are "mastered"
 // Response Time (Fluency) threshold in milliseconds
 const FLUENCY_THRESHOLD = 3000; // 3 seconds
 // Mastery threshold for "leveling up" (EDITABLE)
-const MASTERY_THRESHOLD_PERCENT = 0.8; // 80%
-const MASTERY_THRESHOLD_COUNT = 5; // Must have seen at least 5 facts at this level
+const MASTERY_THRESHOLD_PERCENT = 0.6; // 80%
+const MASTERY_THRESHOLD_COUNT = 2; // Must have seen at least 5 facts at this level
 
 // --- SHARED UI CONSTANTS (Tailwind Classes) ---
 const BTN_BASE = "font-extrabold py-5 px-6 rounded-lg text-2xl w-full mb-4 transition-all duration-150 transform active:scale-95 shadow-lg border-2 border-b-4";
