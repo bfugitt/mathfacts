@@ -177,25 +177,50 @@ function generateProblem(settings) {
     const maxAdd = settings.currentMaxAddend;
     const maxFact = settings.currentMaxFactor;
 
+    // NEW: Smart minimums to avoid 0s and 1s at higher levels
+    // If the max level is 3 or less, still include 0s and 1s.
+    // If the max level is 4 or more, start new problems at 2.
+    const minAdd = (maxAdd > 3) ? 2 : 0;
+    const minFact = (maxFact > 3) ? 2 : 0;
+
     switch (op) {
         case '+':
-            n1 = Math.floor(Math.random() * (maxAdd + 1));
-            n2 = Math.floor(Math.random() * (maxAdd + 1));
+            n1 = Math.floor(Math.random() * (maxAdd - minAdd + 1)) + minAdd;
+            n2 = Math.floor(Math.random() * (maxAdd - minAdd + 1)) + minAdd;
             answer = n1 + n2;
             break;
         case '-':
-            n1 = Math.floor(Math.random() * (maxAdd + 1));
-            n2 = Math.floor(Math.random() * (n1 + 1));
+            n1 = Math.floor(Math.random() * (maxAdd - minAdd + 1)) + minAdd;
+            n2 = Math.floor(Math.random() * (n1 - minAdd + 1)) + minAdd; // n2 must be <= n1
+            // Ensure n2 doesn't go below 0 if minAdd is 0 and n1 is 0
+            if (n2 < 0) n2 = 0; 
             answer = n1 - n2;
             break;
         case 'x':
-            n1 = Math.floor(Math.random() * (maxFact + 1));
-            n2 = Math.floor(Math.random() * (maxFact + 1));
+            n1 = Math.floor(Math.random() * (maxFact - minFact + 1)) + minFact;
+            n2 = Math.floor(Math.random() * (maxFact - minFact + 1)) + minFact;
             answer = n1 * n2;
             break;
         case '÷':
-            n2 = Math.floor(Math.random() * maxFact) + 1;
-            let answer_temp = Math.floor(Math.random() * maxFact) + 1;
+            // For division, we'll keep 1s in the pool for the divisor (n2)
+            // to avoid dividing by 0, but apply the min to the *answer*.
+            const minFact_Divisor = (maxFact > 3) ? 1 : 0; // Keep 1s as divisors, but not 0s
+            
+            // Ensure n2 is never 0
+            if (maxFact === 0) {
+                 n2 = 1; // Failsafe, though this shouldn't be called if maxFact is 0
+                 n1 = 0;
+                 answer = 0;
+                 break;
+            }
+            if (minFact_Divisor === 0) { // Will be 0, 1, 2, or 3
+                n2 = Math.floor(Math.random() * (maxFact + 1)) + 1; // 1 to maxFact
+            } else { // minFact_Divisor is 1 (maxFact > 3)
+                n2 = Math.floor(Math.random() * maxFact) + 1; // 1 to maxFact
+            }
+
+            let answer_temp = Math.floor(Math.random() * (maxFact - minFact + 1)) + minFact;
+            
             n1 = n2 * answer_temp;
             answer = answer_temp;
             break;
